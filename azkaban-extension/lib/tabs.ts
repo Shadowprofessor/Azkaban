@@ -12,6 +12,7 @@ export interface TabStats {
   fpFlagged?: boolean; // 5+ surfaces within 2s
   fpFrames?: string[];
   hashed?: number; // outgoing hashes of the user's own identifiers
+  harvest?: { host: string; field: string; via: string; ts: number }[]; // typed before submit, sent anyway
   score?: number;
   grade?: string;
 }

@@ -106,12 +106,20 @@ export default defineBackground({
     browser.tabs.onRemoved.addListener((tabId) => void resetTab(tabId));
 
     browser.runtime.onMessage.addListener((msg: unknown, sender) => {
-      const m = msg as { type?: string; flagged?: boolean; surfaces?: number; frame?: string; url?: string; method?: string; body?: string };
+      const m = msg as { type?: string; flagged?: boolean; surfaces?: number; frame?: string; url?: string; method?: string; body?: string; host?: string; field?: string; via?: string };
       const tabId = sender.tab?.id;
       if (tabId === undefined || tabId < 0 || !sender.tab?.url) return undefined;
       const site = registrable(hostOf(sender.tab.url));
       if (m.type === "net" && typeof m.url === "string" && isWebUrl(m.url)) {
         void handleBody(tabId, site, m.url, m.method ?? "GET", typeof m.body === "string" ? m.body : "");
+        return undefined;
+      }
+      if (m.type === "harvest" && typeof m.host === "string") {
+        const field = ["email", "phone", "password", "card", "text"].includes(String(m.field)) ? String(m.field) : "text";
+        const via = ["plain", "url-encoded", "base64", "sha256"].includes(String(m.via)) ? String(m.via) : "plain";
+        void bumpTab(tabId, site, (t) => {
+          t.harvest = [...(t.harvest ?? []), { host: m.host!.slice(0, 255), field, via, ts: Date.now() }].slice(-20);
+        });
         return undefined;
       }
       if (m.type === "fingerprint") {
