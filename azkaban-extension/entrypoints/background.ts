@@ -77,6 +77,21 @@ export default defineBackground({
     });
     browser.tabs.onRemoved.addListener((tabId) => void resetTab(tabId));
 
+    browser.runtime.onMessage.addListener((msg: unknown, sender) => {
+      const m = msg as { type?: string; flagged?: boolean; surfaces?: number; frame?: string };
+      const tabId = sender.tab?.id;
+      if (tabId === undefined || tabId < 0 || !sender.tab?.url) return undefined;
+      const site = registrable(hostOf(sender.tab.url));
+      if (m.type === "fingerprint") {
+        void bumpTab(tabId, site, (t) => {
+          t.fingerprint = Math.max(t.fingerprint, Number(m.surfaces) || 0);
+          if (m.flagged) t.fpFlagged = true;
+          if (m.flagged && m.frame && !t.fpFrames?.includes(m.frame)) t.fpFrames = [...(t.fpFrames ?? []), m.frame].slice(0, 10);
+        });
+      }
+      return undefined;
+    });
+
     browser.webRequest.onCompleted.addListener(finish, { urls: ["<all_urls>"] }, ["responseHeaders"]);
     browser.webRequest.onErrorOccurred.addListener((d) => finish({ ...d, responseHeaders: [] }), { urls: ["<all_urls>"] });
   },

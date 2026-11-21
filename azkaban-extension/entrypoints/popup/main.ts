@@ -24,6 +24,7 @@ function render(site: string, t: TabStats | null) {
       <div><div class="stat" style="color:var(--danger)" data-testid="trackers">${t?.trackers ?? 0}</div><div class="muted">Dementors</div></div>
       <div><div class="stat" style="color:var(--hero)">${t?.pii ?? 0}</div><div class="muted">data leaks</div></div>
     </section>
+    ${t?.fpFlagged ? `<section class="card" style="border-color:var(--danger)" data-testid="fp-flag"><strong style="color:var(--danger)">Fingerprinting detected</strong><div class="muted">${t.fingerprint}/6 surfaces probed in 2s (canvas, WebGL, audio, fonts, device, screen)${t.fpFrames?.length ? ` by ${esc(t.fpFrames.join(", "))}` : ""}.</div></section>` : t?.fingerprint ? `<div class="muted">Fingerprint surfaces touched: ${t.fingerprint}/6</div>` : ""}
     <section class="card" aria-label="Companies">
       <div class="muted" style="margin-bottom:6px">Companies receiving data from this page</div>
       ${companies.length ? `<ul>${companies.map(([c, n]) => `<li style="margin:4px 0"><div class="row between"><span>${esc(c)}</span><span class="mono muted">${n}</span></div><div class="bar" style="width:${(n / max) * 100}%"></div></li>`).join("")}</ul>` : `<p class="muted">No trackers seen on this page yet.</p>`}

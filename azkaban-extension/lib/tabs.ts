@@ -8,7 +8,9 @@ export interface TabStats {
   blocked: number;
   companies: Record<string, number>;
   pii: number;
-  fingerprint: number;
+  fingerprint: number; // distinct fingerprinting surfaces touched (0-6)
+  fpFlagged?: boolean; // 5+ surfaces within 2s
+  fpFrames?: string[];
   score?: number;
   grade?: string;
 }

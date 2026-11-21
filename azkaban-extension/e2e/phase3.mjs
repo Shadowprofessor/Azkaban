@@ -1,0 +1,17 @@
+import { launch, startSite } from "./harness.mjs";
+const site = await startSite();
+const { ctx, sw, extId } = await launch();
+const page = await ctx.newPage();
+const errors = []; page.on("pageerror", (e) => errors.push(String(e)));
+await page.goto(site.url);
+const ok = await page.evaluate(() => window.fingerprint());
+await page.waitForTimeout(2500);
+const tabId = await sw.evaluate(async () => (await chrome.tabs.query({ url: "http://127.0.0.1/*" }))[0]?.id);
+const stats = await sw.evaluate(async (id) => (await chrome.storage.session.get(`tab:${id}`))[`tab:${id}`], tabId);
+console.log("page still works:", ok, "page errors:", errors.length);
+console.log("fingerprint surfaces:", stats?.fingerprint, "flagged:", stats?.fpFlagged, stats?.fpFrames);
+const benign = await ctx.newPage(); await benign.goto(site.url); await benign.waitForTimeout(2000);
+const bId = await sw.evaluate(async (u) => (await chrome.tabs.query({}))[2]?.id);
+const b = await sw.evaluate(async (id) => (await chrome.storage.session.get(`tab:${id}`))[`tab:${id}`], bId);
+console.log("benign page flagged:", b?.fpFlagged ?? false);
+await ctx.close(); site.close();

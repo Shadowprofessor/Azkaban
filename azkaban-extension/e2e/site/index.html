@@ -17,3 +17,12 @@
   };
 </script>
 </body></html>
+<script>
+  window.fingerprint = () => {
+    const c = document.createElement("canvas"); const x = c.getContext("2d"); x.fillText("azk", 2, 2); c.toDataURL(); x.measureText("mmmm");
+    const gl = document.createElement("canvas").getContext("webgl"); if (gl) { gl.getExtension("WEBGL_debug_renderer_info"); gl.getParameter(37446); }
+    const ac = new OfflineAudioContext(1, 44100, 44100); ac.startRendering().catch(() => {});
+    void navigator.hardwareConcurrency; void navigator.platform; void screen.colorDepth; void screen.availWidth;
+    return c.toDataURL().length > 0; // page still works
+  };
+</script>
