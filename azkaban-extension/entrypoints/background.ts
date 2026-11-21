@@ -91,6 +91,10 @@ async function runAudit(tabId: number) {
     const sent = ((await browser.storage.session.get(sentKey))[sentKey] as Record<string, string[]>) ?? {};
     const audit = combine(cookies, storage ? [storage] : [], sent);
     await browser.storage.session.set({ [`audit:${tabId}`]: audit });
+    // The cookie total is a score input, so push it onto the tab and let bumpTab rescore.
+    await bumpTab(tabId, site, (t) => {
+      t.cookies = audit.cookies.total;
+    });
     return audit;
   } catch {
     return null;

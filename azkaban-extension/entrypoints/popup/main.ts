@@ -4,6 +4,7 @@ import { getTab, type TabStats } from "../../lib/tabs";
 import type { SiteAudit } from "../../lib/audit";
 import { getSettings, type Settings } from "../../lib/store";
 import { lookup } from "../../lib/trackers";
+import { breakdownLine, computeSiteScore, gradeColor } from "../../lib/scoring";
 
 const app = document.getElementById("app")!;
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -28,6 +29,16 @@ function render(site: string, t: TabStats | null, a: SiteAudit | null, s: Settin
   }
   const companies = Object.entries(t?.companies ?? {}).sort((a, b) => b[1] - a[1]).slice(0, 6);
   const max = companies[0]?.[1] ?? 1;
+  // Recomputed here rather than trusting the stored value, so an open popup is never
+  // showing a grade from before the last request landed.
+  const sc = computeSiteScore({
+    trackers: t?.trackers ?? 0,
+    unknownTrackers: t?.unknown?.length ?? 0,
+    thirdParties: t?.domains?.length ?? 0,
+    cookies: t?.cookies ?? a?.cookies.total ?? 0,
+    fingerprinting: !!t?.fpFlagged,
+  });
+  const worst = sc.penalties.slice().sort((x, y) => y.points - x.points)[0];
   app.innerHTML = `
     <header class="row between">
       <div class="row"><span class="logo">Az</span><div><strong>The Trace</strong><div class="muted mono" data-testid="site">${esc(site || "—")}</div></div></div>
@@ -43,6 +54,17 @@ function render(site: string, t: TabStats | null, a: SiteAudit | null, s: Settin
           ? `<button data-act="resume" style="margin-top:8px;width:100%">Resume blocking on ${esc(site)}</button>`
           : `<button data-act="pause" class="danger" style="margin-top:8px;width:100%" data-testid="pause">Site broken? Pause Patronus on ${esc(site)}</button>`
         : ""}
+    </section>
+    <section class="card score" aria-label="Site safety score" data-testid="score">
+      <div class="gradeBox" style="color:${gradeColor(sc.grade)};border-color:${gradeColor(sc.grade)}">
+        <div class="grade" data-testid="grade">${sc.grade}</div>
+        <div class="gradeNum" data-testid="score-value">${sc.score}<span class="muted">/100</span></div>
+      </div>
+      <div class="scoreMeta">
+        <strong>Site safety</strong>
+        <div class="muted" data-testid="breakdown">${esc(breakdownLine(sc.breakdown))}</div>
+        ${worst ? `<div class="muted" style="font-size:11px">Biggest factor: ${esc(worst.label)} (-${worst.points})</div>` : `<div class="muted" style="font-size:11px">No penalties on this page.</div>`}
+      </div>
     </section>
     <section class="card grid3" aria-label="This page">
       <div><div class="stat" data-testid="requests">${t?.requests ?? 0}</div><div class="muted">requests</div></div>

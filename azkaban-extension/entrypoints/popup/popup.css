@@ -3,3 +3,10 @@ main { padding: 12px; display: grid; gap: 10px; }
 header .logo { width: 26px; height: 26px; border-radius: 6px; display: grid; place-items: center; background: color-mix(in srgb, var(--hero) 25%, transparent); color: var(--hero); font-weight: 700; }
 .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; text-align: center; }
 .bar { height: 4px; border-radius: 4px; background: var(--danger); opacity: .8; }
+
+/* Site safety score: grade reads first, the breakdown explains it. */
+.score { display: grid; grid-template-columns: auto 1fr; gap: 12px; align-items: center; }
+.gradeBox { display: grid; place-items: center; min-width: 64px; padding: 6px 10px; border: 1px solid; border-radius: 10px; background: color-mix(in srgb, currentColor 12%, transparent); }
+.grade { font-size: 34px; font-weight: 800; line-height: 1; letter-spacing: -1px; }
+.gradeNum { font-size: 11px; margin-top: 2px; font-variant-numeric: tabular-nums; }
+.scoreMeta { display: grid; gap: 2px; min-width: 0; }
