@@ -3,10 +3,14 @@ import json
 from secrets import token_urlsafe
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from threading import Lock
+from zipfile import BadZipFile
 
 from .analyst import analyze, is_personal_question
+from .archive_signals import KNOWN_PLATFORMS
 from .cases import BY_CASE
 from .model import rank
+from .imports import import_batch
 from .speech import Speech
 from .voice import LocalVoice
 from .web_activity import WebActivity, answer, hostname
@@ -38,6 +42,7 @@ def dashboard(report, port, voice_model=None):
     voice = LocalVoice(voice_model)
     speech = Speech()
     pairing_code = token_urlsafe(24)
+    import_lock = Lock()
     assets = {route: (static / name, mime) for route, name, mime in [
         ("/", "index.html", "text/html"),
         ("/app.js", "app.js", "text/javascript"),
@@ -59,7 +64,8 @@ def dashboard(report, port, voice_model=None):
                 self.send_json(200, {"sites": activity.snapshot()})
             elif self.path == "/api/live/settings":
                 self.send_json(200, {"pairing_code": pairing_code, "voice": voice.enabled,
-                                     "read_languages": speech.languages(), "dictation_languages": voice.languages})
+                                     "read_languages": speech.languages(), "dictation_languages": voice.languages,
+                                     "import_platforms": KNOWN_PLATFORMS[:-1]})
             elif self.path in assets:
                 path, mime = assets[self.path]
                 self.send(200, f"{mime}; charset=utf-8", path.read_bytes())
@@ -77,6 +83,7 @@ def dashboard(report, port, voice_model=None):
             return data
 
         def do_POST(self):
+            nonlocal report
             if not self.valid_host():
                 self.send_json(403, {"error": "Use the local dashboard URL."})
                 return
@@ -90,7 +97,27 @@ def dashboard(report, port, voice_model=None):
                 self.send_json(403, {"error": "Use the local dashboard to submit this request."})
                 return
             try:
-                if self.path == "/api/live/event":
+                if self.path == "/api/import":
+                    if self.headers.get_content_type() != "application/octet-stream":
+                        raise ValueError("Expected a GhostPrint file upload.")
+                    if not import_lock.acquire(blocking=False):
+                        self.send_json(409, {"error": "An import is already running. Try again when it finishes."})
+                        return
+                    try:
+                        self.connection.settimeout(30)
+                        incoming = import_batch(self.rfile, int(self.headers.get("Content-Length", "0")))
+                        report = incoming
+                    except BadZipFile:
+                        raise ValueError("A ZIP could not be opened. Try downloading that export again.") from None
+                    except OSError as error:
+                        if isinstance(error, TimeoutError):
+                            raise ValueError("The upload timed out. Select the files again.") from None
+                        self.send_json(500, {"error": "GhostPrint could not read or temporarily store the selected files."})
+                        return
+                    finally:
+                        import_lock.release()
+                    self.send_json(200, incoming)
+                elif self.path == "/api/live/event":
                     body = json.loads(self.read_body(4096))
                     if not isinstance(body, dict) or set(body) - {"site", "links", "permissions"} or "site" not in body:
                         raise ValueError("Expected a hostname, with optional public links and permission states.")

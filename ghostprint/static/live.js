@@ -44,59 +44,6 @@ function localNode(tag, text, target) {
   return el;
 }
 
-function linkTo(title, url, target) {
-  const link = localNode("a", title, target);
-  link.href = url;
-  link.target = "_blank";
-  link.rel = "noopener noreferrer";
-}
-
-function showAnalysis(analysis, target) {
-  const headline = localNode("p", analysis.answer, target);
-  headline.className = "analysis-answer";
-  if (analysis.profile.length) {
-    localNode("h4", "Estimated profile", target);
-    const fields = localNode("ul", "", target);
-    for (const item of analysis.profile) {
-      localNode("li", `${item.field} · ${item.value} · ${item.confidence} confidence`, fields);
-    }
-  }
-
-  localNode("h4", "Evidence", target);
-  if (!analysis.claims.length) localNode("p", "No matching records in the available evidence.", target);
-  for (const claim of analysis.claims) {
-    const figure = localNode("article", "", target);
-    localNode("h5", claim.claim, figure);
-    const evidence = localNode("ul", "", figure);
-    for (const item of claim.evidence) {
-      localNode("li", `${item.source} · ${item.fact}`, evidence);
-    }
-    localNode("p", `Confidence · ${claim.confidence.level} · ${claim.confidence.basis}`, figure);
-    localNode("p", `Risk · ${claim.risk.level} · ${claim.risk.why}`, figure);
-    localNode("p", `Recommendation · ${claim.recommendation}`, figure);
-  }
-  localNode("h4", "Confidence", target);
-  localNode("p", `${analysis.confidence.level} · ${analysis.confidence.basis}`, target);
-  localNode("h4", "Privacy Risk", target);
-  localNode("p", `${analysis.risk.level} · ${analysis.risk.why}`, target);
-  localNode("h4", "Recommended Action", target);
-  if (!analysis.actions.length) localNode("p", "Import relevant records or narrow your question.", target);
-  for (const [number, action] of analysis.actions.entries()) {
-    const item = localNode("article", "", target);
-    localNode("h5", `Priority ${number + 1} · ${action.title}`, item);
-    localNode("p", action.reason, item);
-    localNode("p", `Impact · ${action.impact} · Difficulty · ${action.difficulty}`, item);
-    const steps = localNode("ol", "", item);
-    for (const step of action.steps) localNode("li", step, steps);
-    if (action.url) linkTo("Open source", action.url, item);
-  }
-  if (analysis.limitations.length) {
-    localNode("h4", "Limits of the evidence", target);
-    const list = localNode("ul", "", target);
-    for (const limitation of analysis.limitations) localNode("li", limitation, list);
-  }
-}
-
 async function refreshSites() {
   const target = ui("recent-sites");
   try {
@@ -138,6 +85,7 @@ ui("clear-activity").addEventListener("click", async () => {
 });
 
 async function runQuestion() {
+  ui("follow-up").open = true;
   const id = ++askRequest;
   const status = ui("ask-status");
   const panel = ui("ask-answer");
@@ -212,6 +160,13 @@ async function runQuestion() {
     if (id === askRequest) sendButton.disabled = false;
   }
 }
+
+document.addEventListener("ghostprint:report-changed", () => {
+  askRequest++;
+  sendButton.disabled = false;
+  ui("ask-answer").hidden = true;
+  ui("ask-result").replaceChildren();
+});
 
 askForm.addEventListener("submit", (event) => {
   event.preventDefault();
@@ -421,6 +376,7 @@ ui("stop-reading").addEventListener("click", stopReading);
 localRequest("/api/live/settings").then((data) => {
   ui("pairing-code").value = data.pairing_code;
   readLanguages = data.read_languages;
+  for (const platform of data.import_platforms) ui("import-platform").add(new Option(platform, platform));
   refreshVoices();
   const languages = ui("dictation-language");
   const display = new Intl.DisplayNames([navigator.language], { type: "language" });

@@ -32,7 +32,11 @@ The web fallback searches English Wikipedia by default and displays linked excer
 
 ## Ask PrivacyGPT about your data
 
-Start the demo or run `audit … --serve` with your archives. In **Ask about privacy**, choose **Analyze my imported data**, or leave the mode on **Automatic** for clearly personal questions. Try “Which services know my location?”, “What was I interested in during 2025?”, or “What could a data broker infer?”
+Start the demo or live dashboard. Under **Import your data**, select the ZIPs or supported JSON, CSV, HTML, JS, or VCF files you want in one review. GhostPrint analyzes them immediately and displays the **PrivacyGPT review**. Use the platform hint before selecting files if their names do not identify the service. A successful import replaces the active review. Select up to eight files with a combined size of 512 MiB or less. Individual loose files are limited to 64 MiB. Raw uploads are held in a temporary local directory during processing, then deleted. The resulting review stays in memory unless downloaded.
+
+Automatic reviews include an exposure score, evidence and confidence for each finding, and ranked fixes. The score uses the highest finding score, with a base determined by risk severity and a bounded adjustment for the number of records. It describes observed exposure in the supplied files. An import with no supported evidence remains unscored.
+
+For optional questions, open **Ask a follow-up question** and choose **Analyze my imported data**, or leave the mode on **Automatic** for clearly personal questions. Try “Which services know my location?”, “What was I interested in during 2025?”, or “What could a data broker infer?”
 
 PrivacyGPT answers from file-level counts and evidence references, shows confidence and privacy risk per finding, and ranks actions by risk and privacy benefit. It correlates supported topic labels across Google Search, YouTube, Spotify and other sources that provide readable labels. Timeline questions use parsed timestamps. Year counts can reflect incomplete coverage, and activity timestamps cannot establish when you sleep. Personal questions use the local analysis path even when web lookup is enabled.
 

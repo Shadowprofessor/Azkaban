@@ -27,7 +27,7 @@ def main():
     parser = argparse.ArgumentParser(prog="python -m ghostprint")
     commands = parser.add_subparsers(dest="command", required=True)
 
-    audit_command = commands.add_parser("audit", help="Audit local ZIPs or directories")
+    audit_command = commands.add_parser("audit", help="Audit local ZIPs, directories, or supported export files")
     audit_command.add_argument("archives", nargs="+")
     audit_command.add_argument("--platform", choices=sorted(KNOWN_PLATFORMS[:-1]),
                                help="Use this hint for every input in the command")

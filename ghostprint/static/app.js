@@ -12,6 +12,64 @@ function node(tag, value, parent) {
   return element;
 }
 
+function linkTo(title, url, target) {
+  const link = node("a", title, target);
+  link.href = url;
+  link.target = "_blank";
+  link.rel = "noopener noreferrer";
+}
+
+function showAnalysis(analysis, target, { compact = false } = {}) {
+  const headline = node("p", analysis.answer, target);
+  headline.className = "analysis-answer";
+  if (analysis.profile.length) {
+    node("h4", "Estimated profile", target);
+    const fields = node("ul", "", target);
+    for (const item of analysis.profile) {
+      node("li", `${item.field} · ${item.value} · ${item.confidence} confidence`, fields);
+    }
+  }
+
+  node("h4", "Evidence", target);
+  if (!analysis.claims.length) node("p", "No matching records in the available evidence.", target);
+  let evidenceTarget = target;
+  if (compact && analysis.claims.length) {
+    evidenceTarget = node("details", undefined, target);
+    node("summary", "View findings and supporting records", evidenceTarget);
+  }
+  for (const claim of analysis.claims) {
+    const figure = node("article", "", evidenceTarget);
+    node("h5", claim.claim, figure);
+    const evidence = node("ul", "", figure);
+    for (const item of claim.evidence) {
+      node("li", `${item.source} · ${item.fact}`, evidence);
+    }
+    node("p", `Confidence · ${claim.confidence.level} · ${claim.confidence.basis}`, figure);
+    node("p", `Risk · ${claim.risk.level} · ${claim.score}/100 · ${claim.risk.why}`, figure);
+    node("p", `Recommendation · ${claim.recommendation}`, figure);
+  }
+  node("h4", "Confidence", target);
+  node("p", `${analysis.confidence.level} · ${analysis.confidence.basis}`, target);
+  node("h4", "Privacy Risk", target);
+  node("p", `${analysis.risk.level} · ${analysis.risk.why}`, target);
+  node("h4", "Recommended Action", target);
+  if (!analysis.actions.length) node("p", "Import relevant records or narrow your question.", target);
+  for (const [number, action] of analysis.actions.entries()) {
+    const item = node("article", "", target);
+    node("h5", `Priority ${number + 1} · ${action.title}`, item);
+    node("p", action.reason, item);
+    node("p", `Impact · ${action.impact} · Difficulty · ${action.difficulty}`, item);
+    const steps = node("ol", "", item);
+    for (const step of action.steps) node("li", step, steps);
+    if (action.url) linkTo("Open source", action.url, item);
+  }
+  if (analysis.limitations.length) {
+    node("h4", "Limits of the evidence", target);
+    const list = node("ul", "", target);
+    for (const limitation of analysis.limitations) node("li", limitation, list);
+  }
+}
+
 function showMap(report, platforms) {
   const table = node("table", undefined, byId("map"));
   const header = node("tr", undefined, node("thead", undefined, table));
@@ -51,7 +109,7 @@ function showActions(report) {
     const details = node("details", undefined, list);
     details.id = `action-${item.platform}-${item.category}`;
     const summary = node("summary", undefined, details);
-    const score = node("span", `${item.priority}/100`, summary);
+    const score = node("span", `Priority ${item.priority}/100`, summary);
     score.className = "score";
     node("span", item.guide?.title ?? `Review ${item.platform} ${labels[item.category]}`, summary);
     node("p", `${item.platform} · ${labels[item.category]} · ${item.count.toLocaleString()} records`, details);
@@ -144,13 +202,27 @@ function showModelDemo(demo) {
   }
 }
 
-async function load() {
-  const response = await fetch("/api/report");
-  if (!response.ok) throw new Error("Report unavailable");
-  const report = await response.json();
+let currentReport;
+
+function renderReport(report) {
+  currentReport = report;
+  for (const pane of ["map", "charts", "coverage", "model-response", "review-result"]) {
+    byId(pane).replaceChildren();
+  }
+  for (const section of document.querySelectorAll("[data-archive-section]")) section.hidden = !!report.live_only;
+  byId("model-demo").hidden = true;
+  byId("automatic-review").hidden = !report.review;
+  if (report.review) {
+    const score = report.review.score;
+    const meter = byId("risk-meter");
+    meter.hidden = score == null;
+    meter.value = score ?? 0;
+    byId("risk-score").textContent = score == null ? "Insufficient evidence" :
+      `${score}/100 · ${report.review.risk.level}`;
+    showAnalysis(report.review, byId("review-result"), { compact: true });
+  }
   if (report.live_only) {
     byId("status").textContent = "Live browsing session · processed on this laptop";
-    for (const section of document.querySelectorAll("[data-archive-section]")) section.hidden = true;
     return;
   }
   const platforms = [...new Set(report.findings.map((item) => item.platform))].sort();
@@ -159,24 +231,70 @@ async function load() {
     : `${platforms.length} platforms found across ${report.coverage.length} local exports`;
   if (platforms.length) showMap(report, platforms);
   else node("p", "No supported records were found. Check import coverage below.", byId("map"));
+  byId("filter").replaceChildren(new Option("All platforms", ""));
   for (const platform of platforms) {
     node("option", platform, byId("filter")).value = platform;
   }
-  byId("filter").addEventListener("change", () => showActions(report));
   showActions(report);
   showPatterns(report);
   showModelDemo(report.model_demo);
   showCoverage(report);
-  const download = byId("download");
-  download.hidden = false;
-  download.addEventListener("click", () => {
-    const url = URL.createObjectURL(new Blob([JSON.stringify(report, null, 2)], { type: "application/json" }));
-    const link = node("a");
-    link.href = url;
-    link.download = "ghostprint-report.json";
-    link.click();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-  });
+  byId("download").hidden = false;
+}
+
+byId("filter").addEventListener("change", () => showActions(currentReport));
+byId("download").addEventListener("click", () => {
+  const url = URL.createObjectURL(new Blob([JSON.stringify(currentReport, null, 2)], { type: "application/json" }));
+  const link = node("a");
+  link.href = url;
+  link.download = "ghostprint-report.json";
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+});
+
+byId("import-files").addEventListener("change", async (event) => {
+  const picker = event.currentTarget;
+  const files = [...picker.files];
+  if (!files.length) return;
+  const status = byId("import-status");
+  const platform = byId("import-platform");
+  if (files.length > 8 || files.reduce((total, file) => total + file.size, 0) > 512 * 1024 * 1024) {
+    status.textContent = "Choose up to eight files with a combined size of 512 MiB or less.";
+    picker.value = "";
+    return;
+  }
+  picker.disabled = true;
+  platform.disabled = true;
+  status.textContent = "Reading selected files and scoring the evidence locally…";
+  try {
+    const manifest = new TextEncoder().encode(JSON.stringify({
+      files: files.map((file) => ({ name: file.name, size: file.size })),
+      platform: platform.value || null
+    }));
+    const length = new DataView(new ArrayBuffer(4));
+    length.setUint32(0, manifest.byteLength);
+    const body = new Blob([length, manifest, ...files], { type: "application/octet-stream" });
+    const response = await fetch("/api/import", { method: "POST", body });
+    const report = await response.json();
+    if (!response.ok) throw new Error(report.error || "GhostPrint could not import those files.");
+    renderReport(report);
+    document.dispatchEvent(new Event("ghostprint:report-changed"));
+    status.textContent = report.review.score == null ? "Import complete. No supported records were found." : "Analysis complete.";
+    byId("review-heading").focus();
+  } catch (error) {
+    status.textContent = error instanceof TypeError ? "Could not reach GhostPrint. Check that the local dashboard is running." : error.message;
+  } finally {
+    picker.value = "";
+    picker.disabled = false;
+    platform.disabled = false;
+  }
+});
+
+async function load() {
+  const response = await fetch("/api/report");
+  if (!response.ok) throw new Error("Report unavailable");
+  const report = await response.json();
+  if (!currentReport) renderReport(report);
 }
 
 load().catch(() => {

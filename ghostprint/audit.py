@@ -9,11 +9,13 @@ from collections import Counter
 from html.parser import HTMLParser
 from pathlib import Path
 
+from .analyst import analyze
 from .archive_signals import ADDITIONAL_FIELDS, KNOWN_PLATFORMS, archive_hint, classify_extra, evidence_summary, product_and_kind
 from .retrieval import retrieve
 
 
 MAX_FILE = 64 * 1024 * 1024
+LOOSE_SUFFIXES = {".csv", ".html", ".js", ".json", ".vcf"}
 MAX_TOTAL = 384 * 1024 * 1024
 MAX_FILES = 30_000
 MAX_ANALYST_SOURCES = 2_000
@@ -278,16 +280,20 @@ def audit(inputs):
         if path in seen:
             continue
         seen.add(path)
-        status = dict(export=number, kind="zip" if path.is_file() else "directory",
+        kind = "directory" if path.is_dir() else "zip" if path.suffix.lower() == ".zip" else "file"
+        status = dict(export=number, kind=kind,
                       parsed_files=0, unrecognized_files=0, limited_files=0,
                       unreadable_files=0, empty_or_unsupported_files=0, file_limit_reached=False)
         if path.is_dir():
             scan(directory_members(path), hint, status, number)
         elif path.is_file() and zipfile.is_zipfile(path):
+            status["kind"] = "zip"
             with zipfile.ZipFile(path) as archive:
                 scan(archive_members(archive), hint, status, number)
+        elif path.is_file() and path.suffix.lower() in LOOSE_SUFFIXES:
+            scan([(path.name, path.stat().st_size, path.open)], hint, status, number)
         else:
-            raise ValueError(f"Export {number} must be a ZIP or a directory.")
+            raise ValueError(f"Export {number} must be a readable ZIP, directory, or supported export file.")
         coverage.append(status)
     ranked = []
     for (platform, category), finding in findings.items():
@@ -298,7 +304,7 @@ def audit(inputs):
         ranked.append({**finding, "priority": score, "reason": REASONS[category],
                        "guide": sources[0] if sources else None})
     ranked.sort(key=lambda item: (-item["priority"], item["platform"], item["category"]))
-    return {
+    report = {
         "findings": ranked,
         "coverage": coverage,
         "analyst_sources": analyst_sources,
@@ -308,3 +314,5 @@ def audit(inputs):
         "interest_signals": [{"artist": name, "plays": count}
                              for name, count in artists.most_common(5) if count >= 2],
     }
+    report["review"] = analyze("", report, automatic=True)
+    return report

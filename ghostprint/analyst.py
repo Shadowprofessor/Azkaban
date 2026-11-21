@@ -1,6 +1,7 @@
 """Answer personal questions from locally retrieved aggregate evidence."""
 
 import re
+from math import log10
 from collections import Counter, defaultdict
 
 from .archive_signals import KNOWN_PLATFORMS, TOPIC_PATTERNS
@@ -48,6 +49,7 @@ RISKS = {
     "permissions": ("High", "A site with a granted sensor permission can access that sensor subject to browser controls."),
 }
 RISK_ORDER = {"Unknown": 0, "Low": 1, "Medium": 2, "High": 3, "Critical": 4}
+SCORE_BASE = {"Low": 20, "Medium": 45, "High": 70, "Critical": 95}
 BENEFIT = {"permissions": 92, "location": 90, "contacts": 80, "sharing": 78, "messages": 75,
            "security": 70, "activity": 57, "shopping": 52, "connections": 48, "interests": 45,
            "work": 38, "education": 36}
@@ -143,11 +145,12 @@ def risk_for(category, flags):
     return RISKS[category]
 
 
-def claim(text, evidence, level, basis, category, platform, flags=None):
+def claim(text, evidence, level, basis, category, platform, flags=None, *, records):
     risk, why = risk_for(category, flags or Counter())
     return {
         "claim": text, "evidence": evidence, "confidence": {"level": level, "basis": basis},
         "risk": {"level": risk, "why": why}, "category": category, "platform": platform,
+        "score": min(100, SCORE_BASE[risk] + min(14, int(5 * log10(records + 1)))),
     }
 
 
@@ -214,7 +217,7 @@ def discovery(rows, year, *, qualifier=""):
                 evidence += evidence_counts(group, [row.get("flags", {}).get(flag, 0) for row in group], label)
         claims.append(claim(text, evidence, "High",
                             "The counted record type or field appears in the available data.",
-                            category, platform, flags))
+                            category, platform, flags, records=count))
     return claims
 
 
@@ -243,7 +246,7 @@ def topics(rows, year, prompt):
                                           "records matching this topic"),
                      "Medium" if total >= 2 else "Low",
                      "Matched activity or interest labels. They may reflect incidental or shared-account activity.",
-                     "interests", None if len(platforms) > 1 else next(iter(platforms)))
+                     "interests", None if len(platforms) > 1 else next(iter(platforms)), records=total)
         claims.append({**item, "topic": topic})
     return claims
 
@@ -262,7 +265,7 @@ def city_claims(rows, year):
         evidence = source_facts([(row, f"{sum(counts.values()):,} explicitly city-labeled visit records. Labels include {names}.")])
         claims.append(claim(text, evidence,
                             "Medium", "The export labels these as visits. Labels and inferred visits can be inaccurate.",
-                            "location", row["platform"]))
+                            "location", row["platform"], records=sum(counts.values())))
     return claims
 
 
@@ -299,7 +302,8 @@ def activity_claims(rows, year, compare):
                                                     if not year or key == year) for row in group], f"records in the {int(hour):02d}:00 UTC hour")
         else:
             continue
-        claims.append(claim(text, evidence, "High", basis, "activity", platform))
+        claims.append(claim(text, evidence, "High", basis, "activity", platform,
+                            records=sum(count for _, count in used)))
     return claims
 
 
@@ -332,7 +336,7 @@ def profile_summary(claims, broker):
     return fields
 
 
-def analyze(prompt, report, live_sites=(), live_permissions=None):
+def analyze(prompt, report, live_sites=(), live_permissions=None, *, automatic=False):
     """Compose a cited assessment. This path has no external search or model calls."""
     prompt = prompt.lower()
     years = set(PERIOD.findall(prompt))
@@ -365,7 +369,10 @@ def analyze(prompt, report, live_sites=(), live_permissions=None):
     plan = bool(PLAN.search(prompt))
     specific_target = re.search(r"\bwhat (?:does|did) (.+?) (?:know|collect|store)\b", prompt)
 
-    if not requested and specific_target:
+    if automatic:
+        claims = discovery(rows, None) + topics(rows, None, "") + activity_claims(rows, None, False)
+        limitations.append("The review covers supported records in this import. Missing or unrecognized records are outside its scope.")
+    elif not requested and specific_target:
         claims = []
         limitations.append("No supported archive was matched to the named service.")
     elif not profile_view and (IDENTITY.search(prompt) or re.search(r"\bdemographics\b", prompt)):
@@ -422,14 +429,24 @@ def analyze(prompt, report, live_sites=(), live_permissions=None):
         limitations.append("The source limit was reached. Some imported files were excluded from analysis.")
     if not claims:
         return {
-            "answer": "The available evidence is insufficient to answer that question.",
+            "answer": "There were no supported records to score in this import." if automatic else
+                      "The available evidence is insufficient to answer that question.",
             "claims": [], "confidence": {"level": "Low", "basis": "No supported evidence matched the requested inference."},
             "risk": {"level": "Unknown", "why": "The available records do not establish the requested exposure."},
+            "score": None,
             "actions": [], "profile": profile_summary([], broker) if profile_view else [],
             "limitations": limitations or ["Import a relevant archive or narrow the question to a supported data type."],
         }
-    claims.sort(key=lambda i: (-RISK_ORDER[i["risk"]["level"]], -BENEFIT[i["category"]], i["platform"] or ""))
-    claims = claims[:12]
+    claims.sort(key=lambda i: (-RISK_ORDER[i["risk"]["level"]], -i["score"], -BENEFIT[i["category"]], i["platform"] or ""))
+    score = max(item["score"] for item in claims)
+    finding_count = len(claims)
+    # Keep the strongest topic and timing signals visible in a long automatic review.
+    if automatic and len(claims) > 12:
+        insights = [item for item in claims if item.get("topic") or "UTC hour" in item["claim"]][:3]
+        primary = [item for item in claims if item not in insights][:12 - len(insights)]
+        claims = primary + insights
+    else:
+        claims = claims[:12]
     actions = {}
     for item in claims:
         key = item["platform"], item["category"]
@@ -440,6 +457,9 @@ def analyze(prompt, report, live_sites=(), live_permissions=None):
     headline = claims[0]["claim"]
     if plan:
         headline = f"Start with {actions[claims[0]['platform'], claims[0]['category']]['title']}."
+    elif automatic:
+        noun = "finding" if finding_count == 1 else "findings"
+        headline = f"PrivacyGPT found {finding_count} supported {noun}. " + headline
     elif len(categories) == 1 and categories & {"location", "contacts"} and len(claims) > 1:
         services = ", ".join(sorted({item["platform"] for item in claims if item["platform"]}))
         headline = f"The supplied evidence contains {LABELS[next(iter(categories))]} records from {services}."
@@ -454,4 +474,5 @@ def analyze(prompt, report, live_sites=(), live_permissions=None):
         "confidence": {"level": level, "basis": "Overall confidence reflects the weakest reported finding."},
         "risk": claims[0]["risk"], "actions": list(actions.values())[:5], "limitations": limitations,
         "profile": profile_summary(claims, broker) if profile_view else [],
+        "score": score,
     }

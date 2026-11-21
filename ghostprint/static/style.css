@@ -41,7 +41,14 @@ textarea { display: block; width: 100%; resize: vertical; }
 .answer-panel h4 { font-size: 1.05rem; margin: 0; }
 .answer-panel h5 { font-size: 1rem; margin: 0; }
 .analysis-answer { color: var(--ink); font-size: 1.1rem; }
-#ask-result > h4 { margin: 1rem 0 .45rem; }
+#ask-result > h4, #review-result > h4 { margin: 1rem 0 .45rem; }
+#review-result h5 { font-size: 1rem; margin: 0; }
+.import-controls { align-items: end; }
+.import-controls > label:first-child { display: grid; gap: .25rem; }
+#import-files { width: min(100%, 26rem); }
+.exposure-score { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-top: .8rem; }
+.exposure-score p { font-size: 1.45rem; font-weight: 700; color: var(--mint); margin: .2rem 0 0; }
+.exposure-score meter { width: min(42%, 14rem); min-width: 4rem; height: 1.25rem; }
 .controls, .site-list { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; margin: .65rem 0; }
 .controls > label, .controls select { min-width: 0; max-width: 100%; }
 audio { max-width: 100%; }

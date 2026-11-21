@@ -15,6 +15,32 @@
       <h1>Personal data footprint</h1>
       <p id="status" role="status">Loading your local audit…</p>
     </header>
+    <section id="import-tools">
+      <h2>Import your data</h2>
+      <p>Select the exports you want in one review. GhostPrint starts the analysis on this laptop as soon as you choose the files.</p>
+      <div class="controls import-controls">
+        <label>Platform hint <select id="import-platform"><option value="">Auto-detect</option></select></label>
+        <label for="import-files" class="import-label">Choose export files</label>
+        <input id="import-files" type="file" multiple accept=".zip,.json,.csv,.html,.js,.vcf" aria-describedby="import-help">
+      </div>
+      <p id="import-help" class="shortcut">ZIP or supported export files · Up to eight files and 512 MiB total · A new import replaces the current review</p>
+      <p id="import-status" role="status"></p>
+    </section>
+    <section id="automatic-review" aria-labelledby="review-heading" hidden>
+      <h2 id="review-heading" tabindex="-1">PrivacyGPT review</h2>
+      <article class="exposure-score">
+        <div>
+          <h3>Exposure score</h3>
+          <p id="risk-score"></p>
+        </div>
+        <meter id="risk-meter" min="0" max="100" aria-label="Exposure score out of 100"></meter>
+      </article>
+      <details>
+        <summary>How scoring works</summary>
+        <p>Each finding starts at 20 for Low, 45 for Medium, 70 for High, or 95 for Critical risk. A bounded record-count adjustment adds up to 14 points, with a maximum score of 100. The overall score is the highest finding score. A score describes exposure in the supplied records. Confidence is reported separately.</p>
+      </details>
+      <div id="review-result"></div>
+    </section>
     <section id="live-tools">
       <h2>Live website activity</h2>
       <p>Pair the browser companion and turn on recording to see the sites you open during this session.</p>
@@ -35,7 +61,8 @@
       <div id="recent-sites" class="site-list"><p>Waiting for website activity.</p></div>
     </section>
     <section>
-      <h2>Ask about privacy</h2>
+      <details id="follow-up">
+      <summary>Ask a follow-up question</summary>
       <form id="ask-form">
         <label for="ask-mode">Answer mode</label>
         <select id="ask-mode">
@@ -73,6 +100,7 @@
         <p id="ask-status" role="status"></p>
         <div id="ask-result"></div>
       </div>
+      </details>
     </section>
     <section data-archive-section>
       <div class="section-head"><h2>Footprint map</h2><button id="download" hidden>Download report</button></div>
