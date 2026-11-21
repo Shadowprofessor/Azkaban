@@ -6,6 +6,8 @@ import { scan, toHits } from "../lib/pii";
 import { addCookies, auditCookies, combine, idCore, idHash, type StorageReport } from "../lib/audit";
 import { lookup } from "../lib/trackers";
 import { bumpTab, getTab, resetTab } from "../lib/tabs";
+import { syncRules } from "../lib/dnr";
+import { setSettings } from "../lib/store";
 
 // Per-request scratch (requestId -> partial). Requests finish within seconds while the SW is
 // awake handling their events; nothing here needs to survive a SW restart.
@@ -91,6 +93,25 @@ async function runAudit(tabId: number) {
   }
 }
 
+type PatronusCmd =
+  | { type: "patronus"; action: "toggle"; on: boolean }
+  | { type: "patronus"; action: "block"; domains: string[] }
+  | { type: "patronus"; action: "unblock"; domains: string[] }
+  | { type: "patronus"; action: "pause"; site: string }
+  | { type: "patronus"; action: "resume"; site: string };
+
+const DOMAIN = /^[a-z0-9.-]+\.[a-z]{2,}$/i;
+
+async function patronus(c: PatronusCmd) {
+  const s = await getSettings();
+  if (c.action === "toggle") await setSettings({ blockTrackers: !!c.on });
+  if (c.action === "block") await setSettings({ customBlocks: [...new Set([...s.customBlocks, ...c.domains.filter((d) => DOMAIN.test(d))])] });
+  if (c.action === "unblock") await setSettings({ customBlocks: s.customBlocks.filter((d) => !c.domains.includes(d)) });
+  if (c.action === "pause" && (DOMAIN.test(c.site) || /^\d{1,3}(\.\d{1,3}){3}$/.test(c.site))) await setSettings({ allowlist: [...new Set([...s.allowlist, c.site])] });
+  if (c.action === "resume") await setSettings({ allowlist: s.allowlist.filter((d) => d !== c.site) });
+  return syncRules(await getSettings()); // apply now; don't wait for the storage event
+}
+
 export default defineBackground({
   type: "module",
   main() {
@@ -166,6 +187,7 @@ export default defineBackground({
       if (m.type === "audit_request" && fromOwnPage && Number.isInteger(m.tabId)) {
         return runAudit(m.tabId!);
       }
+      if (fromOwnPage && m.type === "patronus") return patronus(msg as PatronusCmd);
       const tabId = sender.tab?.id;
       if (tabId === undefined || tabId < 0 || !sender.tab?.url) return undefined;
       const site = registrable(hostOf(sender.tab.url));
@@ -192,6 +214,27 @@ export default defineBackground({
     });
 
     browser.webRequest.onCompleted.addListener(finish, { urls: ["<all_urls>"] }, ["responseHeaders"]);
-    browser.webRequest.onErrorOccurred.addListener((d) => finish({ ...d, responseHeaders: [] }), { urls: ["<all_urls>"] });
+    browser.webRequest.onErrorOccurred.addListener(
+      (d) => {
+        if (d.error === "net::ERR_BLOCKED_BY_CLIENT" && d.tabId >= 0) {
+          pending.delete(d.requestId);
+          const site = registrable(hostOf(d.initiator) || hostOf(d.url));
+          void bumpTab(d.tabId, site, (t) => {
+            t.blocked++;
+          });
+          return;
+        }
+        finish({ ...d, responseHeaders: [] });
+      },
+      { urls: ["<all_urls>"] },
+    );
+
+    // Keep DNR rules in sync with settings (install, browser start, any settings change).
+    const resync = () => void getSettings().then(syncRules).catch(() => undefined);
+    browser.runtime.onInstalled.addListener(resync);
+    browser.runtime.onStartup.addListener(resync);
+    browser.storage.local.onChanged.addListener((changes) => {
+      if (changes.settings) resync();
+    });
   },
 });

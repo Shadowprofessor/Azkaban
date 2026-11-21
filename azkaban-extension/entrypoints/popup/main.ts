@@ -2,6 +2,8 @@ import { browser } from "wxt/browser";
 import { registrable, hostOf } from "../../lib/domain";
 import { getTab, type TabStats } from "../../lib/tabs";
 import type { SiteAudit } from "../../lib/audit";
+import { getSettings, type Settings } from "../../lib/store";
+import { lookup } from "../../lib/trackers";
 
 const app = document.getElementById("app")!;
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -13,13 +15,34 @@ async function activeTab() {
   return tab;
 }
 
-function render(site: string, t: TabStats | null, a: SiteAudit | null) {
+function render(site: string, t: TabStats | null, a: SiteAudit | null, s: Settings) {
+  const paused = s.allowlist.includes(site);
+  // company -> tracker domains this page contacted (for one-click blocking)
+  const byCompany = new Map<string, string[]>();
+  for (const d of t?.domains ?? []) {
+    const { tracker, company } = lookup(d);
+    if (!tracker) continue;
+    const c = company || tracker.name;
+    byCompany.set(c, [...(byCompany.get(c) ?? []), d]);
+  }
   const companies = Object.entries(t?.companies ?? {}).sort((a, b) => b[1] - a[1]).slice(0, 6);
   const max = companies[0]?.[1] ?? 1;
   app.innerHTML = `
     <header class="row between">
       <div class="row"><span class="logo">Az</span><div><strong>The Trace</strong><div class="muted mono" data-testid="site">${esc(site || "—")}</div></div></div>
     </header>
+    <section class="card" aria-label="Patronus" data-testid="patronus">
+      <div class="row between">
+        <div><strong>Patronus</strong> <span class="muted">${s.blockTrackers ? (paused ? "paused on this site" : "blocking trackers") : "off"}</span></div>
+        <button data-act="toggle" class="${s.blockTrackers ? "" : "primary"}" data-testid="patronus-toggle">${s.blockTrackers ? "Turn off" : "Cast Patronus"}</button>
+      </div>
+      ${t?.blocked ? `<div class="muted" style="margin-top:4px" data-testid="blocked">${t.blocked} request${t.blocked === 1 ? "" : "s"} blocked on this page</div>` : ""}
+      ${s.blockTrackers || s.customBlocks.length
+        ? paused
+          ? `<button data-act="resume" style="margin-top:8px;width:100%">Resume blocking on ${esc(site)}</button>`
+          : `<button data-act="pause" class="danger" style="margin-top:8px;width:100%" data-testid="pause">Site broken? Pause Patronus on ${esc(site)}</button>`
+        : ""}
+    </section>
     <section class="card grid3" aria-label="This page">
       <div><div class="stat" data-testid="requests">${t?.requests ?? 0}</div><div class="muted">requests</div></div>
       <div><div class="stat" style="color:var(--danger)" data-testid="trackers">${t?.trackers ?? 0}</div><div class="muted">Dementors</div></div>
@@ -35,7 +58,7 @@ function render(site: string, t: TabStats | null, a: SiteAudit | null) {
     </section>` : ""}
     <section class="card" aria-label="Companies">
       <div class="muted" style="margin-bottom:6px">Companies receiving data from this page</div>
-      ${companies.length ? `<ul>${companies.map(([c, n]) => `<li style="margin:4px 0"><div class="row between"><span>${esc(c)}</span><span class="mono muted">${n}</span></div><div class="bar" style="width:${(n / max) * 100}%"></div></li>`).join("")}</ul>` : `<p class="muted">No trackers seen on this page yet.</p>`}
+      ${companies.length ? `<ul>${companies.map(([c, n]) => `<li style="margin:4px 0"><div class="row between"><span>${esc(c)}</span><span class="row"><span class="mono muted">${n}</span>${byCompany.get(c) ? (byCompany.get(c)!.every((d) => s.customBlocks.includes(d)) ? `<button data-act="unblock" data-domains="${esc(byCompany.get(c)!.join(","))}">Unblock</button>` : `<button data-act="block" data-domains="${esc(byCompany.get(c)!.join(","))}">Block</button>`) : ""}</span></div><div class="bar" style="width:${(n / max) * 100}%"></div></li>`).join("")}</ul>` : `<p class="muted">No trackers seen on this page yet.</p>`}
     </section>`;
 }
 
@@ -44,8 +67,27 @@ async function refresh() {
   const site = registrable(hostOf(tab?.url));
   const id = tab?.id;
   const audit = id !== undefined ? ((await browser.storage.session.get(`audit:${id}`))[`audit:${id}`] as SiteAudit | undefined) : undefined;
-  render(site, id !== undefined ? await getTab(id) : null, audit ?? null);
+  render(site, id !== undefined ? await getTab(id) : null, audit ?? null, await getSettings());
+  currentSite = site;
 }
+
+let currentSite = "";
+app.addEventListener("click", async (ev) => {
+  const btn = (ev.target as HTMLElement).closest("button[data-act]") as HTMLButtonElement | null;
+  if (!btn) return;
+  const act = btn.dataset.act;
+  const s = await getSettings();
+  const cmd =
+    act === "toggle" ? { action: "toggle", on: !s.blockTrackers }
+    : act === "block" ? { action: "block", domains: (btn.dataset.domains ?? "").split(",") }
+    : act === "unblock" ? { action: "unblock", domains: (btn.dataset.domains ?? "").split(",") }
+    : act === "pause" ? { action: "pause", site: currentSite }
+    : { action: "resume", site: currentSite };
+  btn.disabled = true;
+  await browser.runtime.sendMessage({ type: "patronus", ...cmd }).catch(() => undefined);
+  await refresh();
+});
+browser.storage.local.onChanged.addListener(() => void refresh());
 
 void refresh();
 void activeTab().then((t) => t?.id !== undefined && browser.runtime.sendMessage({ type: "audit_request", tabId: t.id }).catch(() => undefined));
