@@ -11,6 +11,7 @@ from .pipeline import Pipeline
 from .blocklist import Blocklist, host_blocked
 from .config import REPO_ROOT
 from .evidence import EvidenceChain
+from .extbridge import ExtensionBridge
 from .idle import IdleDetector
 from .insights import InsightEngine
 from . import remediate
@@ -32,7 +33,9 @@ class Agent:
         self.cfg = cfg
         self.mode = mode
         self.loop: asyncio.AbstractEventLoop | None = None
-        self.hub = Hub(self.status, self.on_command)
+        self.ext = ExtensionBridge(self.status, self.on_browser_detection, self.on_site_score)
+        self.hub = Hub(self.status, self.on_command, extension=self.ext)
+        self.site_scores: dict[str, dict] = {}        # site -> latest extension score
         self.pipeline = Pipeline(cfg)
         self.exposure = ExposureScore()
         self.insights = InsightEngine()
@@ -67,6 +70,57 @@ class Agent:
         """Single path for every insight, so remediation is attached exactly once."""
         self.hub.publish(remediate.enrich(msg))
 
+    # ------------------------------------------------------------------ extension bridge
+    async def on_browser_detection(self, d: dict) -> None:
+        """A finding from the browser, already validated by extbridge.
+
+        Deliberately NOT added to the exposure score. When the proxy is also capturing, the
+        extension and mitmproxy both see the same browser requests, and counting them twice
+        would silently inflate the number the whole UI is built around. These are published
+        as their own finding type so the dashboard can show them beside network flows and
+        label where they came from.
+        """
+        self.evidence.add_event("browser_detection", d)
+        self.publish_insight({
+            "type": "insight",
+            "key": f"browser:{d['kind']}:{d['domain']}",
+            "kind": d["kind"] if d["kind"] in ("unknown_tracker", "hashed_pii") else "unknown_tracker",
+            "level": "critical" if d["kind"] in ("harvest", "hashed_pii") else "warn",
+            "title": self._browser_title(d),
+            "detail": f"Seen in the browser by the Azkaban extension on {d['site'] or 'a page'}"
+                      + (f", category {d['category']}" if d["category"] != "unknown" else "")
+                      + (f", confidence {d['confidence']:.2f}" if d["confidence"] else "")
+                      + ". The proxy cannot see this: it happens before TLS or inside the page.",
+            "data": {**d, "company": d["company"] or d["domain"], "host": d["host"]},
+        })
+
+    @staticmethod
+    def _browser_title(d: dict) -> str:
+        kind, dom = d["kind"], d["domain"]
+        if kind == "fingerprinting":
+            return f"Fingerprinting in the browser: {dom}"
+        if kind == "harvest":
+            return f"Form data sent before submit: {dom}"
+        if kind == "hashed_pii":
+            return f"Hashed identifier sent from the browser to {dom}"
+        if kind == "third_party_volume":
+            return f"Heavy third-party activity on {d['site'] or dom}"
+        return f"Likely tracker not on any list: {dom} (browser)"
+
+    async def on_site_score(self, s: dict) -> None:
+        """Latest A-F safety score for a site, from the extension popup."""
+        self.site_scores[s["site"]] = s
+        self.hub.publish({"type": "insight", "key": f"site_score:{s['site']}",
+                          "kind": "unknown_tracker", "level": "info",
+                          "title": f"Site safety {s['grade']} ({s['score']}/100): {s['site']}",
+                          "detail": f"Scored in the browser from {s['breakdown']['trackerCount']} trackers, "
+                                    f"{s['breakdown']['unknownTrackerCount']} on no list, "
+                                    f"{s['breakdown']['thirdPartyCount']} third parties and "
+                                    f"{s['breakdown']['cookieCount']} cookies"
+                                    + (", with fingerprinting" if s["breakdown"]["fingerprintingDetected"] else "")
+                                    + ".",
+                          "data": s})
+
     # ------------------------------------------------------------------ status
     def status(self) -> dict:
         return {
@@ -79,6 +133,9 @@ class Agent:
                         "model": self.pipeline.severity.available, "geo": self.pipeline.geo.available,
                         "nim": self.legal.nim.configured,
                         "remediation": remediate.available()},
+            # Additive (v1): extension bridge state, for the popup's connected indicator.
+            "extension": {"connected": self.ext.clients > 0, "version": self.ext.version,
+                          "detections": self.ext.detections, "scores": self.ext.scores},
             # Additive (v1): which reasoning engine answered last, for the UI badge.
             "llmEngine": self.legal.engine,
             "llmModel": self.legal.nim.model if self.legal.nim.configured else self.cfg.ollama_model,

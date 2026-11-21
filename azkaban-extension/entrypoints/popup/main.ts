@@ -5,6 +5,7 @@ import type { SiteAudit } from "../../lib/audit";
 import { getSettings, type Settings } from "../../lib/store";
 import { lookup } from "../../lib/trackers";
 import { breakdownLine, computeSiteScore, gradeColor } from "../../lib/scoring";
+import { getBridgeState, type BridgeState } from "../../lib/agentBridge";
 
 const app = document.getElementById("app")!;
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -17,7 +18,9 @@ async function activeTab() {
 }
 
 type Unknown = { key: string; data: { domain: string; category: string; confidence: number } };
-function render(site: string, t: TabStats | null, a: SiteAudit | null, s: Settings, unknown: Unknown[] = []) {
+const DASHBOARD_URL = "http://127.0.0.1:5173/";
+
+function render(site: string, t: TabStats | null, a: SiteAudit | null, s: Settings, unknown: Unknown[] = [], bridge: BridgeState = { status: "standalone", agentVersion: "", engines: {}, sent: 0, lastError: "", since: 0 }) {
   const paused = s.allowlist.includes(site);
   // company -> tracker domains this page contacted (for one-click blocking)
   const byCompany = new Map<string, string[]>();
@@ -42,6 +45,13 @@ function render(site: string, t: TabStats | null, a: SiteAudit | null, s: Settin
   app.innerHTML = `
     <header class="row between">
       <div class="row"><span class="logo">Az</span><div><strong>The Trace</strong><div class="muted mono" data-testid="site">${esc(site || "—")}</div></div></div>
+      <div class="agentState">
+        <div class="row" data-testid="bridge" title="${bridge.status === "connected" ? esc(`Agent ${bridge.agentVersion}, ${bridge.sent} findings sent`) : "The extension works on its own; start the agent to combine browser and network views."}">
+          <span class="dot ${bridge.status === "connected" ? "dot-on" : "dot-off"}"></span>
+          <span class="muted" style="font-size:11px">${bridge.status === "connected" ? "Connected to agent" : "Standalone mode"}</span>
+        </div>
+        ${bridge.status === "connected" ? `<a class="dashLink" href="${DASHBOARD_URL}" target="_blank" rel="noreferrer" data-testid="dashboard-link">Open Dashboard \u2197</a>` : ""}
+      </div>
     </header>
     <section class="card" aria-label="Patronus" data-testid="patronus">
       <div class="row between">
@@ -84,6 +94,10 @@ function render(site: string, t: TabStats | null, a: SiteAudit | null, s: Settin
       <div><strong>On-page alerts</strong><div class="muted" style="font-size:11px">${s.muted ? "off" : "warn me about serious leaks as they happen"}</div></div>
       <button data-act="alerts" class="${s.muted ? "primary" : ""}" data-testid="alerts-toggle">${s.muted ? "Turn on" : "Turn off"}</button>
     </section>
+    <section class="card row between" aria-label="Agent bridge" data-testid="bridge-card">
+      <div><strong>Agent bridge</strong><div class="muted" style="font-size:11px">${s.agentBridge ? (bridge.status === "connected" ? `sending findings to the agent (${bridge.sent})` : "on, waiting for the agent on 127.0.0.1:8787") : "off, nothing leaves this browser"}</div></div>
+      <button data-act="bridge" class="${s.agentBridge ? "" : "primary"}" data-testid="bridge-toggle">${s.agentBridge ? "Turn off" : "Turn on"}</button>
+    </section>
     <section class="card" aria-label="Companies">
       <div class="muted" style="margin-bottom:6px">Companies receiving data from this page</div>
       ${companies.length ? `<ul>${companies.map(([c, n]) => `<li style="margin:4px 0"><div class="row between"><span>${esc(c)}</span><span class="row"><span class="mono muted">${n}</span>${byCompany.get(c) ? (byCompany.get(c)!.every((d) => s.customBlocks.includes(d)) ? `<button data-act="unblock" data-domains="${esc(byCompany.get(c)!.join(","))}">Unblock</button>` : `<button data-act="block" data-domains="${esc(byCompany.get(c)!.join(","))}">Block</button>`) : ""}</span></div><div class="bar" style="width:${(n / max) * 100}%"></div></li>`).join("")}</ul>` : `<p class="muted">No trackers seen on this page yet.</p>`}
@@ -99,7 +113,7 @@ async function refresh() {
   const allUnknown = ((await browser.storage.session.get("unknown"))["unknown"] as Unknown[] | undefined) ?? [];
   // Flagged anywhere, and contacted by the page currently in this tab.
   const mine = allUnknown.filter((u) => stats?.domains?.includes(u.data.domain) || stats?.unknown?.includes(u.data.domain));
-  render(site, stats, audit ?? null, await getSettings(), mine);
+  render(site, stats, audit ?? null, await getSettings(), mine, await getBridgeState());
   currentSite = site;
 }
 
@@ -114,6 +128,7 @@ app.addEventListener("click", async (ev) => {
     : act === "block" ? { action: "block", domains: (btn.dataset.domains ?? "").split(",") }
     : act === "unblock" ? { action: "unblock", domains: (btn.dataset.domains ?? "").split(",") }
     : act === "alerts" ? { action: "alerts", muted: !s.muted }
+    : act === "bridge" ? { action: "bridge", on: !s.agentBridge }
     : act === "pause" ? { action: "pause", site: currentSite }
     : { action: "resume", site: currentSite };
   btn.disabled = true;

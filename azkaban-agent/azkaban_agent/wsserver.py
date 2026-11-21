@@ -24,13 +24,40 @@ HISTORY = 500
 # Only local pages may connect (blocks drive-by websites reading your traffic).
 LOCAL_ORIGINS = [re.compile(r"^https?://(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$"), None]
 
+# A Chrome extension's origin is chrome-extension://<32 chars a-p>. The id changes on every
+# unpacked reload, so it cannot be pinned without making the user copy a token around.
+# This is acceptable ONLY because the extension path is producer-only: see extbridge.py.
+# Consumer paths (the dashboard) never accept this origin.
+EXTENSION_ORIGIN = re.compile(r"^chrome-extension://[a-p]{32}$")
+ALL_ORIGINS = LOCAL_ORIGINS + [EXTENSION_ORIGIN]
+
+#: Producer path for the browser extension. Everything else is a dashboard consumer.
+EXTENSION_PATH = "/ws/extension"
+
+
+def _path_of(ws) -> str:
+    """Request path, defensively: a client may omit it and the library version varies."""
+    try:
+        return (ws.request.path or "/").split("?")[0].rstrip("/") or "/"
+    except Exception:
+        return "/"
+
+
+def _origin_of(ws) -> str:
+    try:
+        return ws.request.headers.get("Origin", "") or ""
+    except Exception:
+        return ""
+
 CommandHandler = Callable[[dict], Awaitable[None]]
 
 
 class Hub:
-    def __init__(self, status_fn: Callable[[], dict], on_command: CommandHandler | None = None):
+    def __init__(self, status_fn: Callable[[], dict], on_command: CommandHandler | None = None,
+                 extension=None):
         self.status_fn = status_fn
         self.on_command = on_command
+        self.extension = extension        # extbridge.ExtensionBridge, or None to refuse producers
         self.clients: dict[ServerConnection, asyncio.Queue] = {}
         self.history: deque[str] = deque(maxlen=HISTORY)
         self.last_score: str | None = None
@@ -72,6 +99,23 @@ class Hub:
                 await ws.send(data)
 
     async def handler(self, ws: ServerConnection) -> None:
+        """Route by path: producers to the extension bridge, everyone else to the feed."""
+        path, origin = _path_of(ws), _origin_of(ws)
+        is_ext_origin = bool(EXTENSION_ORIGIN.match(origin))
+        if path == EXTENSION_PATH:
+            if self.extension is None:
+                await ws.close(1011, "extension bridge not enabled")
+                return
+            await self.extension.handle(ws)
+            return
+        if is_ext_origin:
+            # An extension asking for the consumer feed. Refused: that path streams flows
+            # and PII, and the permissive extension origin check is only safe one way.
+            await ws.close(4003, "extensions may only connect to /ws/extension")
+            return
+        await self.consumer(ws)
+
+    async def consumer(self, ws: ServerConnection) -> None:
         q: asyncio.Queue = asyncio.Queue(maxsize=QUEUE_MAX)
         await ws.send(json.dumps(self.status_fn()))
         for data in list(self.history):
@@ -108,4 +152,7 @@ async def start_ws(hub: Hub, port: int, host: str = "127.0.0.1"):
     host = require_loopback(host, "websocket")
     # Port probes / aborted handshakes are not errors worth a traceback.
     logging.getLogger("websockets.server").setLevel(logging.CRITICAL)
-    return await serve(hub.handler, host, port, origins=LOCAL_ORIGINS)
+    # Extension origins are allowed at the transport layer and then confined to the
+    # producer path by Hub.handler.
+    origins = ALL_ORIGINS if hub.extension is not None else LOCAL_ORIGINS
+    return await serve(hub.handler, host, port, origins=origins)

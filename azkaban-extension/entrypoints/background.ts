@@ -13,6 +13,8 @@ import type { PageObs } from "../lib/trackerFeatures";
 import { uidInQuery, webRequestType } from "../lib/trackerFeatures";
 import { setSettings } from "../lib/store";
 import { fingerprintToast, shouldSend, thirdPartyToast, unknownTrackerToast, type Toast } from "../lib/alerts";
+import { RECONNECT_ALARM, agentBridge, scheduleReconnect } from "../lib/agentBridge";
+import { rescore } from "../lib/tabs";
 
 // Per-request scratch (requestId -> partial). Requests finish within seconds while the SW is
 // awake handling their events; nothing here needs to survive a SW restart.
@@ -47,6 +49,12 @@ async function handleBody(tabId: number, site: string, url: string, method: stri
     await bumpTab(tabId, site, (t) => {
       t.pii += findings.length;
       if (hashedHits) t.hashed = (t.hashed ?? 0) + hashedHits;
+    });
+    // Seen before TLS, inside the page: the proxy cannot attribute these to a form field.
+    agentBridge.sendDetection({
+      kind: hashedHits ? "hashed_pii" : "unknown_tracker",
+      host: u.hostname, domain: u.hostname, site, company,
+      pii: flow.pii, severity: flow.severity, bytes: body.length,
     });
   } catch {
     /* one bad body never breaks the worker */
@@ -122,6 +130,7 @@ async function runAudit(tabId: number) {
 type PatronusCmd =
   | { type: "patronus"; action: "toggle"; on: boolean }
   | { type: "patronus"; action: "alerts"; muted: boolean }
+  | { type: "patronus"; action: "bridge"; on: boolean }
   | { type: "patronus"; action: "block"; domains: string[] }
   | { type: "patronus"; action: "unblock"; domains: string[] }
   | { type: "patronus"; action: "pause"; site: string }
@@ -133,6 +142,7 @@ async function patronus(c: PatronusCmd) {
   const s = await getSettings();
   if (c.action === "toggle") await setSettings({ blockTrackers: !!c.on });
   if (c.action === "alerts") return setSettings({ muted: !!c.muted }).then(() => 0);
+  if (c.action === "bridge") return setSettings({ agentBridge: !!c.on }).then(() => 0);
   if (c.action === "block") await setSettings({ customBlocks: [...new Set([...s.customBlocks, ...c.domains.filter((d) => DOMAIN.test(d))])] });
   if (c.action === "unblock") await setSettings({ customBlocks: s.customBlocks.filter((d) => !c.domains.includes(d)) });
   if (c.action === "pause" && (DOMAIN.test(c.site) || /^\d{1,3}(\.\d{1,3}){3}$/.test(c.site))) await setSettings({ allowlist: [...new Set([...s.allowlist, c.site])] });
@@ -210,6 +220,11 @@ export default defineBackground({
             if (!msg) return;
             void bumpTab(d.tabId, site, (t) => (t.unknown = [...(t.unknown ?? []), msg.data.domain].slice(-20)));
             void toast(d.tabId, unknownTrackerToast(msg.data.domain, msg.data.confidence));
+            // The agent cannot see this: the model ran in the browser, on browser-only features.
+            agentBridge.sendDetection({
+              kind: "unknown_tracker", host: msg.data.domain, domain: msg.data.domain,
+              site, category: msg.data.category, confidence: msg.data.confidence,
+            });
           }),
         ).catch(() => undefined);
       }
@@ -243,7 +258,12 @@ export default defineBackground({
     });
     browser.tabs.onRemoved.addListener((tabId) => void resetTab(tabId));
     browser.tabs.onUpdated.addListener((tabId, info, tab) => {
-      if (info.status === "complete" && isWebUrl(tab.url)) void runAudit(tabId);
+      if (info.status !== "complete" || !isWebUrl(tab.url)) return;
+      void runAudit(tabId).then(async () => {
+        // One score per page load, after the audit has supplied the cookie count.
+        const t = await getTab(tabId);
+        if (t) agentBridge.sendSiteScore(rescore(t), t.site);
+      });
     });
 
     browser.runtime.onMessage.addListener((msg: unknown, sender) => {
@@ -272,6 +292,7 @@ export default defineBackground({
         void bumpTab(tabId, site, (t) => {
           t.harvest = [...(t.harvest ?? []), { host: m.host!.slice(0, 255), field, via, ts: Date.now() }].slice(-20);
         });
+        agentBridge.sendDetection({ kind: "harvest", host: m.host!.slice(0, 253), site, severity: 90 });
         return undefined;
       }
       if (m.type === "fingerprint") {
@@ -286,6 +307,10 @@ export default defineBackground({
           void getSettings().then((s2) =>
             toast(tabId, fingerprintToast(s2.blockTrackers && !s2.allowlist.includes(site), surfaces)),
           );
+          agentBridge.sendDetection({
+            kind: "fingerprinting", host: m.frame || site, domain: m.frame || site, site,
+            category: "fingerprinting", severity: 80,
+          });
         }
       }
       return undefined;
@@ -314,5 +339,21 @@ export default defineBackground({
     browser.storage.local.onChanged.addListener((changes) => {
       if (changes.settings) resync();
     });
+
+    // ---- agent bridge. Optional: the extension is fully usable with no agent running.
+    const linkAgent = () => {
+      void getSettings().then((s) => (s.agentBridge ? agentBridge.connect() : agentBridge.disconnect()));
+    };
+    browser.runtime.onInstalled.addListener(linkAgent);
+    browser.runtime.onStartup.addListener(linkAgent);
+    browser.storage.local.onChanged.addListener((changes) => {
+      if (changes.settings) linkAgent();
+    });
+    // Alarms survive service-worker eviction, so this is what actually gets us back.
+    browser.alarms.onAlarm.addListener((alarm) => {
+      if (alarm.name === RECONNECT_ALARM) linkAgent();
+    });
+    void scheduleReconnect();
+    linkAgent();
   },
 });
