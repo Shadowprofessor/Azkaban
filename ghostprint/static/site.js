@@ -2,6 +2,10 @@ const websiteForm = byId("website-form");
 const websiteStatus = byId("website-status");
 const websiteResults = byId("website-results");
 const checkWebsite = byId("check-website");
+const pickerControls = [byId("ghostprint-tab-picker"), byId("check-without-account")];
+const pickerMessage = byId("tab-picker-status");
+let pickerRequest;
+let pickerTimer;
 
 const browserDataLabels = {
   email: "Email addresses", phone: "Phone numbers", name: "Names", address: "Postal addresses",
@@ -108,8 +112,57 @@ function showWebsite(result) {
   }
 }
 
-websiteForm.addEventListener("submit", async (event) => {
-  event.preventDefault();
+function pickerUnavailable() {
+  finishPicker();
+  pickerMessage.textContent = "Tab picker unavailable in this browser. Open GhostPrint in Chrome or Edge with the companion extension, or enter a website below.";
+  byId("tab-picker-help").open = true;
+}
+
+function finishPicker() {
+  clearTimeout(pickerTimer);
+  pickerRequest = undefined;
+  pickerControls.forEach((button) => { button.disabled = false; });
+}
+
+function openTabPicker() {
+  byId("website-check").scrollIntoView();
+  pickerControls.forEach((button) => { button.disabled = true; });
+  pickerMessage.textContent = "Opening the browser tab picker…";
+  pickerRequest = crypto.randomUUID();
+  pickerTimer = setTimeout(pickerUnavailable, 2500);
+  window.postMessage({ type: "ghostprint-open-picker", request: pickerRequest }, location.origin);
+}
+
+for (const button of pickerControls) button.addEventListener("click", openTabPicker);
+window.addEventListener("message", (event) => {
+  const data = event.data;
+  if (event.source !== window || event.origin !== location.origin || !pickerRequest || data?.request !== pickerRequest) return;
+  if (data.type === "ghostprint-picker-unavailable") pickerUnavailable();
+  if (data.type === "ghostprint-picker-opened") {
+    clearTimeout(pickerTimer);
+    pickerMessage.textContent = "Select a tab in the GhostPrint browser window.";
+    pickerTimer = setTimeout(() => {
+      finishPicker();
+      pickerMessage.textContent = "Tab selection timed out. Choose an open tab to try again.";
+    }, 180000);
+  }
+  if (data.type === "ghostprint-picker-result") {
+    finishPicker();
+    pickerMessage.textContent = data.canceled ? "Tab selection canceled." : "";
+    if (data.snapshot?.site) {
+      byId("policy-website").value = data.snapshot.site;
+      runSiteCheck({ website: data.snapshot.site, browser_evidence: data.snapshot });
+    }
+  }
+});
+
+async function runSiteCheck(data) {
+  if (checkWebsite.disabled) return;
+  if (pickerRequest) {
+    finishPicker();
+    pickerMessage.textContent = "";
+  }
+  pickerControls.forEach((button) => { button.disabled = true; });
   checkWebsite.disabled = true;
   websiteResults.replaceChildren();
   websiteStatus.textContent = "Reading public policies and checking available evidence…";
@@ -117,11 +170,7 @@ websiteForm.addEventListener("submit", async (event) => {
     const response = await fetch("/api/site/check", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        website: byId("policy-website").value.trim(),
-        privacy_url: byId("policy-privacy").value.trim() || null,
-        terms_url: byId("policy-terms").value.trim() || null
-      })
+      body: JSON.stringify(data)
     });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || "Could not check the site.");
@@ -131,5 +180,15 @@ websiteForm.addEventListener("submit", async (event) => {
     websiteStatus.textContent = error instanceof TypeError ? "Could not reach the local GhostPrint dashboard." : error.message;
   } finally {
     checkWebsite.disabled = false;
+    pickerControls.forEach((button) => { button.disabled = false; });
   }
+}
+
+websiteForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  runSiteCheck({
+    website: byId("policy-website").value.trim(),
+    privacy_url: byId("policy-privacy").value.trim() || null,
+    terms_url: byId("policy-terms").value.trim() || null
+  });
 });

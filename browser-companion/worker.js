@@ -85,6 +85,17 @@ chrome.permissions.onRemoved.addListener(async ({ permissions }) => {
     await chrome.action.setBadgeText({ text: "" });
   }
 });
-chrome.runtime.onMessage.addListener((message) => {
+chrome.runtime.onMessage.addListener((message, sender, respond) => {
   if (message === "capture") capture();
+  if (message?.type !== "open-picker" || !sender.tab || sender.frameId !== 0 || !sender.documentId ||
+      !/^[a-f0-9-]{36}$/.test(message.request)) return;
+  const origin = new URL(sender.url);
+  if (origin.protocol !== "http:" || !["127.0.0.1", "localhost"].includes(origin.hostname)) return;
+  const query = new URLSearchParams({
+    tab: sender.tab.id, document: sender.documentId, request: message.request
+  });
+  chrome.windows.create({ url: chrome.runtime.getURL("picker.html") + "?" + query, type: "popup",
+    width: 570, height: 640, focused: true })
+    .then(() => respond({ opened: true }), () => respond({ opened: false }));
+  return true;
 });

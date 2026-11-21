@@ -88,6 +88,13 @@ def safe_links(site, links):
     return sorted(found)
 
 
+def validate_permissions(permissions):
+    if (not isinstance(permissions, dict) or set(permissions) - SITE_PERMISSIONS
+            or any(state not in ("granted", "denied", "prompt") for state in permissions.values())):
+        raise ValueError("Expected supported browser permission states.")
+    return permissions.copy()
+
+
 class WebActivity:
     def __init__(self):
         self._events = deque(maxlen=2000)
@@ -100,15 +107,12 @@ class WebActivity:
         site = hostname(site)
         found = safe_links(site, links) if links is not None else None
         snapshot = validate_observation(observation) if observation is not None else None
-        if permissions is not None and (not isinstance(permissions, dict)
-                or set(permissions) - SITE_PERMISSIONS
-                or any(state not in ("granted", "denied", "prompt") for state in permissions.values())):
-            raise ValueError("Expected supported browser permission states.")
+        checked_permissions = validate_permissions(permissions) if permissions is not None else None
         with self._lock:
             if found is not None:
                 self._links[site] = found
-            if permissions is not None:
-                self._permission_checks[site] = permissions.copy()
+            if checked_permissions is not None:
+                self._permission_checks[site] = checked_permissions
                 if len(self._permission_checks) > 200:
                     self._permission_checks.pop(next(iter(self._permission_checks)))
             if snapshot is not None:

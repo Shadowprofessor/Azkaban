@@ -14,10 +14,10 @@ from .connections import PROVIDERS, ConnectionProblem, Connections
 from .model import rank
 from .imports import import_batch
 from .public_pages import public_url
-from .site_policy import website_check
+from .site_policy import validate_observation, website_check
 from .speech import Speech
 from .voice import LocalVoice
-from .web_activity import WebActivity, answer, hostname
+from .web_activity import WebActivity, answer, hostname, safe_links, validate_permissions
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -170,14 +170,23 @@ def dashboard(report, port, voice_model=None):
                     activity.add(body["site"], body.get("links"), body.get("permissions"), body.get("observation"))
                     self.send_json(200, {"recorded": True})
                 elif self.path == "/api/site/check":
-                    body = json.loads(self.read_body(8192))
-                    if not isinstance(body, dict) or set(body) - {"website", "privacy_url", "terms_url"}:
+                    body = json.loads(self.read_body(16384))
+                    if not isinstance(body, dict) or set(body) - {"website", "privacy_url", "terms_url", "browser_evidence"}:
                         raise ValueError("Enter a website to check.")
                     website = public_url(body.get("website"), homepage=True)
                     host = urlsplit(website).hostname
-                    alias = host[4:] if host.startswith("www.") else f"www.{host}"
-                    observation = activity.site_observation(host) or activity.site_observation(alias)
-                    links = activity.links(host) or activity.links(alias)
+                    evidence = body.get("browser_evidence")
+                    if evidence is None:
+                        alias = host[4:] if host.startswith("www.") else f"www.{host}"
+                        observation = activity.site_observation(host) or activity.site_observation(alias)
+                        links = activity.links(host) or activity.links(alias)
+                    else:
+                        if (not isinstance(evidence, dict) or set(evidence) != {"site", "links", "permissions", "observation"}
+                                or hostname(evidence["site"]) != host):
+                            raise ValueError("Browser evidence must be from the selected website.")
+                        links = safe_links(host, evidence["links"])
+                        observation = validate_observation(evidence["observation"])
+                        observation["permissions"] = validate_permissions(evidence["permissions"])
                     if not site_checks.acquire(blocking=False):
                         self.send_json(409, {"error": "Website checks are busy. Try again when one finishes."})
                         return

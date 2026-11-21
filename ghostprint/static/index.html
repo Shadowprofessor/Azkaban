@@ -20,8 +20,11 @@
     <section id="connected-apps" aria-labelledby="connected-heading">
       <h2 id="connected-heading">Connect an account</h2>
       <p>Sign in on the provider’s website and approve read-only access. GhostPrint fetches the permitted records and shows your privacy review automatically.</p>
-      <p><a href="#website-check">Check a website without signing in</a> · <a href="#import-tools">Use an export instead</a></p>
-      <p id="connections-status" role="status">Loading account connections…</p>
+      <div class="controls">
+        <button id="check-without-account" type="button">Check a website without signing in</button>
+        <a href="#import-tools">Use an export instead</a>
+      </div>
+      <p id="connections-status" role="status">If account cards are missing, open the updated dashboard and reload this page.</p>
       <div id="account-cards" class="grid"></div>
     </section>
     <section id="import-tools">
@@ -40,7 +43,13 @@
     </section>
     <section id="website-check" aria-labelledby="website-heading">
       <h2 id="website-heading">Website privacy check</h2>
-      <p>See what a site says it collects, keeps, or shares. Pair the browser companion to compare those statements with a snapshot of the page you visited.</p>
+      <p>Choose an open browser tab to compare that page with the site’s privacy policy and terms. You can also check by website address.</p>
+      <button id="ghostprint-tab-picker" type="button">Choose an open tab</button>
+      <p id="tab-picker-status" role="status"></p>
+      <details id="tab-picker-help">
+        <summary>Set up the browser tab picker</summary>
+        <p>In Chrome or Edge, open the extensions page and load or reload the <code>browser-companion</code> folder. Open this dashboard in the same browser profile as your tabs and reload the page.</p>
+      </details>
       <form id="website-form">
         <div class="controls website-controls">
           <label>Website <input id="policy-website" required placeholder="example.com" maxlength="1200" autocomplete="off"></label>

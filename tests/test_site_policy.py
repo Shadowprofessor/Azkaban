@@ -1,7 +1,12 @@
+import json
 import socket
+import threading
 import unittest
+from urllib.error import HTTPError
+from urllib.request import Request, urlopen
 from unittest.mock import patch
 
+from ghostprint import server
 from ghostprint.public_pages import PageUnavailable, PolicyPage, doc_kind, public_addresses, public_url
 from ghostprint.site_policy import comparisons, extract_statements, validate_observation, website_check
 from ghostprint.web_activity import WebActivity
@@ -34,6 +39,45 @@ def snapshot():
 
 
 class WebsitePolicyTest(unittest.TestCase):
+    def test_dashboard_uses_selected_tab_evidence_without_recording_it(self):
+        host = "shop.example.com"
+        with server.ThreadingHTTPServer(("127.0.0.1", 0), server.Handler) as httpd:
+            def serve(handler, _host, _port):
+                httpd.RequestHandlerClass = handler
+                httpd.serve_forever(poll_interval=0.01)
+
+            with patch.object(server, "run", side_effect=serve), patch.object(server, "website_check") as check:
+                check.return_value = {"site": host}
+                thread = threading.Thread(target=server.dashboard, args=({}, 0), daemon=True)
+                thread.start()
+                base = f"http://127.0.0.1:{httpd.server_port}"
+
+                def send(body):
+                    request = Request(base + "/api/site/check", json.dumps(body).encode(),
+                                      {"Origin": base, "Content-Type": "application/json"})
+                    with urlopen(request, timeout=3) as response:
+                        return json.load(response)
+
+                try:
+                    evidence = {"site": host, "links": [PRIVACY], "permissions": {"camera": "denied"},
+                                "observation": snapshot()}
+                    self.assertEqual(send({"website": host, "browser_evidence": evidence}), {"site": host})
+                    _, observed, links, _, _ = check.call_args.args
+                    self.assertEqual(observed["forms"], ["email"])
+                    self.assertEqual(observed["permissions"], {"camera": "denied"})
+                    self.assertEqual(links, [PRIVACY])
+                    with urlopen(base + "/api/live", timeout=3) as response:
+                        self.assertEqual(json.load(response), {"sites": []})
+                    evidence["site"] = "other.example.com"
+                    with self.assertRaises(HTTPError) as error:
+                        send({"website": host, "browser_evidence": evidence})
+                    error.exception.close()
+                    self.assertEqual(error.exception.code, 400)
+                    check.assert_called_once()
+                finally:
+                    httpd.shutdown()
+                    thread.join(timeout=3)
+
     def test_links_and_comparisons_keep_scope_and_attribution(self):
         fake = {
             HOME + "/": '<footer><a href="/compare-privacy">Privacy features</a>'

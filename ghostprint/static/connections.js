@@ -44,7 +44,8 @@ function showAccounts(accounts) {
 }
 
 async function loadAccounts() {
-  const response = await fetch("/api/connections");
+  const response = await fetch("/api/connections", { signal: AbortSignal.timeout(5000) });
+  if (response.status === 404) throw new Error("This dashboard server is out of date. Open the updated GhostPrint dashboard.");
   if (!response.ok) throw new Error("Could not load account connections.");
   const data = await response.json();
   showAccounts(data.accounts);
@@ -80,6 +81,8 @@ async function updateAccount(provider, action) {
   }
 }
 
+accountStatus.textContent = "Loading account connections…";
 loadAccounts()
   .then(() => { accountStatus.textContent = ""; })
-  .catch((error) => { accountStatus.textContent = error.message; });
+  .catch((error) => { accountStatus.textContent = error.name === "TimeoutError" ?
+    "The dashboard did not respond. Restart GhostPrint and reload this page." : error.message; });
