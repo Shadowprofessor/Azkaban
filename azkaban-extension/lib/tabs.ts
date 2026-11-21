@@ -12,6 +12,7 @@ export interface TabStats {
   fpFlagged?: boolean; // 5+ surfaces within 2s
   fpFrames?: string[];
   hashed?: number; // outgoing hashes of the user's own identifiers
+  domains?: string[]; // third-party registrable domains contacted (for the cookie audit)
   harvest?: { host: string; field: string; via: string; ts: number }[]; // typed before submit, sent anyway
   score?: number;
   grade?: string;
@@ -42,7 +43,7 @@ export function bumpTab(tabId: number, site: string, fn: (t: TabStats) => void):
 }
 
 export async function resetTab(tabId: number): Promise<void> {
-  await browser.storage.session.remove(key(tabId));
+  await browser.storage.session.remove([key(tabId), `audit:${tabId}`, `sent:${tabId}`]);
   await browser.action.setBadgeText({ tabId, text: "" }).catch(() => undefined);
 }
 

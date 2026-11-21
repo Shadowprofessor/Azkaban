@@ -1,0 +1,22 @@
+import { launch, startSite } from "./harness.mjs";
+const site = await startSite();
+const { ctx, sw } = await launch();
+const page = await ctx.newPage();
+await page.goto(site.url);
+await page.evaluate(() => window.fireTrackers());
+await page.waitForTimeout(2000);
+const tabId = await sw.evaluate(async () => (await chrome.tabs.query({ url: "http://127.0.0.1/*" }))[0]?.id);
+// Open the popup for this tab: it sends audit_request on open, exactly like a click.
+const { extId } = { extId: new URL(sw.url()).host };
+const popup = await ctx.newPage();
+await popup.goto(`chrome-extension://${extId}/popup.html?tab=${tabId}`);
+await popup.waitForTimeout(1500);
+const audit = await sw.evaluate(async (id) => (await chrome.storage.session.get(`audit:${id}`))[`audit:${id}`], tabId);
+console.log("popup:", (await popup.locator("[data-testid=audit]").innerText()).split("\n").filter(Boolean).join(" | "));
+console.log("cookies:", JSON.stringify({ ...audit.cookies, ids: Object.keys(audit.cookies.ids).length }));
+console.log("storage:", JSON.stringify(audit.storage));
+console.log("supercookies:", JSON.stringify(audit.supercookies));
+console.log("synced:", JSON.stringify(audit.synced));
+const dump = JSON.stringify(await sw.evaluate(async () => await chrome.storage.session.get(null)));
+console.log("raw ID in storage?", dump.includes("123456789.987654321"));
+await ctx.close(); site.close();

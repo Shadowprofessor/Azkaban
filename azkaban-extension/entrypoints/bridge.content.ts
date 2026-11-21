@@ -98,6 +98,38 @@ export default defineContentScript({
       }
     };
 
+    // Storage audit for the background: key names + truncated hashes of ID-like values only.
+    browser.runtime.onMessage.addListener((msg: unknown) => {
+      if ((msg as { type?: string })?.type !== "storage_audit" || window !== window.top) return undefined;
+      return (async () => {
+        const ID_LIKE = /^(?:\d{6,}\.\d{6,}|GA\d\.\d\.\d+\.\d+|[0-9a-f]{16,}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[A-Za-z0-9_-]{22,})$/i;
+        const report = { origin: location.origin, localKeys: 0, idKeys: [] as string[], idHashes: [] as string[], indexedDb: [] as string[] };
+        try {
+          report.localKeys = localStorage.length;
+          for (let i = 0; i < Math.min(localStorage.length, 500); i++) {
+            const k = localStorage.key(i);
+            if (!k) continue;
+            const raw = (localStorage.getItem(k) ?? "").trim().replace(/^"|"$/g, "");
+            const ga = raw.match(/^GA\d\.\d\.(\d+\.\d+)$/);
+            const core = ga?.[1] ?? (ID_LIKE.test(raw) && raw.length <= 128 ? raw : null);
+            if (core) {
+              report.idKeys.push(k.slice(0, 64));
+              report.idHashes.push((await sha256(core)).slice(0, 16));
+            }
+          }
+        } catch {
+          /* storage blocked */
+        }
+        try {
+          const dbs = (await indexedDB.databases?.()) ?? [];
+          report.indexedDb = dbs.map((d) => String(d.name ?? "")).slice(0, 50);
+        } catch {
+          /* not supported */
+        }
+        return report;
+      })();
+    });
+
     window.addEventListener("message", (ev) => {
       try {
         if (ev.source !== window || !ev.data || ev.data[CHANNEL] !== true) return;

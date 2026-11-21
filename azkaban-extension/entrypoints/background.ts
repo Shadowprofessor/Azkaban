@@ -3,8 +3,9 @@ import { browser } from "wxt/browser";
 import { hostOf, isWebUrl, registrable } from "../lib/domain";
 import { appendFlow, attachFindings, getSettings, type ExtFlow } from "../lib/store";
 import { scan, toHits } from "../lib/pii";
+import { addCookies, auditCookies, combine, idCore, idHash, type StorageReport } from "../lib/audit";
 import { lookup } from "../lib/trackers";
-import { bumpTab, resetTab } from "../lib/tabs";
+import { bumpTab, getTab, resetTab } from "../lib/tabs";
 
 // Per-request scratch (requestId -> partial). Requests finish within seconds while the SW is
 // awake handling their events; nothing here needs to survive a SW restart.
@@ -42,6 +43,51 @@ async function handleBody(tabId: number, site: string, url: string, method: stri
     });
   } catch {
     /* one bad body never breaks the worker */
+  }
+}
+
+// ID-like query values sent to third parties, as truncated hashes, for sync detection.
+async function recordSentIds(tabId: number, url: URL) {
+  try {
+    const key = `sent:${tabId}`;
+    const cur = ((await browser.storage.session.get(key))[key] as Record<string, string[]>) ?? {};
+    let changed = false;
+    const dom = registrable(url.hostname);
+    for (const [, v] of [...url.searchParams].slice(0, 50)) {
+      const core = idCore(v);
+      if (!core) continue;
+      const h = await idHash(core);
+      const list = (cur[h] ??= []);
+      if (!list.includes(dom)) {
+        list.push(dom);
+        changed = true;
+      }
+    }
+    if (changed) await browser.storage.session.set({ [key]: cur });
+  } catch {
+    /* ignore */
+  }
+}
+
+async function runAudit(tabId: number) {
+  try {
+    const tab = await browser.tabs.get(tabId);
+    if (!isWebUrl(tab.url)) return null;
+    const site = registrable(hostOf(tab.url));
+    const cookies = await auditCookies(site, tab.url!);
+    const stats = await getTab(tabId);
+    for (const dom of stats?.domains ?? []) {
+      const third = await browser.cookies.getAll({ domain: dom }).catch(() => []);
+      await addCookies(cookies, third, site);
+    }
+    const storage = ((await browser.tabs.sendMessage(tabId, { type: "storage_audit" }, { frameId: 0 }).catch(() => null)) as StorageReport | null);
+    const sentKey = `sent:${tabId}`;
+    const sent = ((await browser.storage.session.get(sentKey))[sentKey] as Record<string, string[]>) ?? {};
+    const audit = combine(cookies, storage ? [storage] : [], sent);
+    await browser.storage.session.set({ [`audit:${tabId}`]: audit });
+    return audit;
+  } catch {
+    return null;
   }
 }
 
@@ -87,9 +133,14 @@ export default defineBackground({
         initiator: site,
       };
       appendFlow(flow);
+      if (flow.thirdParty && d.tabId >= 0 && url.search) void recordSentIds(d.tabId, url);
       if (d.tabId >= 0) {
         void bumpTab(d.tabId, site, (t) => {
           t.requests++;
+          if (flow.thirdParty) {
+            const dom = registrable(url.hostname);
+            if (!t.domains?.includes(dom)) t.domains = [...(t.domains ?? []), dom].slice(-100);
+          }
           if (tracker && flow.thirdParty) {
             t.trackers++;
             const c = company || tracker.name;
@@ -104,9 +155,17 @@ export default defineBackground({
       if (info.url) void resetTab(tabId);
     });
     browser.tabs.onRemoved.addListener((tabId) => void resetTab(tabId));
+    browser.tabs.onUpdated.addListener((tabId, info, tab) => {
+      if (info.status === "complete" && isWebUrl(tab.url)) void runAudit(tabId);
+    });
 
     browser.runtime.onMessage.addListener((msg: unknown, sender) => {
-      const m = msg as { type?: string; flagged?: boolean; surfaces?: number; frame?: string; url?: string; method?: string; body?: string; host?: string; field?: string; via?: string };
+      const m = msg as { type?: string; flagged?: boolean; surfaces?: number; frame?: string; url?: string; method?: string; body?: string; host?: string; field?: string; via?: string; tabId?: number };
+      // From our own extension pages (popup/dashboard), identified by their extension URL.
+      const fromOwnPage = sender.id === browser.runtime.id && (sender.url ?? "").startsWith(browser.runtime.getURL("/"));
+      if (m.type === "audit_request" && fromOwnPage && Number.isInteger(m.tabId)) {
+        return runAudit(m.tabId!);
+      }
       const tabId = sender.tab?.id;
       if (tabId === undefined || tabId < 0 || !sender.tab?.url) return undefined;
       const site = registrable(hostOf(sender.tab.url));
