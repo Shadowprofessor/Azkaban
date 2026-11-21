@@ -16,3 +16,4 @@ train/out/
 /out/
 next-env.d.ts
 *.tsbuildinfo
+.playwright-mcp/

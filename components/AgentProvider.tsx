@@ -1,5 +1,21 @@
 "use client";
 
+import { useEffect } from "react";
+import { useConsent } from "@/lib/ui/consent";
+import { agentSocket } from "@/lib/ui/socket";
+import { Toasts } from "./Toasts";
+
+/** Opens the agent socket only after the operator has given consent. */
 export function AgentProvider({ children }: { children: React.ReactNode }) {
-  return <>{children}</>;
+  const consent = useConsent();
+  useEffect(() => {
+    if (consent) agentSocket.start();
+    else agentSocket.stop();
+  }, [consent]);
+  return (
+    <>
+      {children}
+      <Toasts />
+    </>
+  );
 }
