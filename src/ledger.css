@@ -967,7 +967,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
   opacity:.72;
   background:radial-gradient(ellipse at 52% 48%,#553d8b66 0,transparent 62%),linear-gradient(180deg,transparent 63%,#38305b55 100%);
 }
-.atlas-map { transform:translateY(-28px); }
+.atlas-map { transform:translateY(-155px); }
 .atlas-top,.atlas-foot { color:#d0c9ed; }
 .atlas-labels { color:#c4bddf; }
 .atlas-top { border-color:#ffffff2b; }
