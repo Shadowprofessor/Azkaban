@@ -11,3 +11,8 @@ node_modules/
 evidence/
 *.mmdb
 train/out/
+# dashboard
+/.next/
+/out/
+next-env.d.ts
+*.tsbuildinfo
