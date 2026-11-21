@@ -984,6 +984,11 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .product-index { color:#b8b1d4; }
 .product-index span { color:#e2dcf7; }
 .hero-caption { color:#c0bad8; }
+.consent-top .landing-nav a { font-size:14px; }
+.consent-top .landing-nav button { font-size:14px; padding:12px 16px; }
+@media(max-width:640px) {
+  .consent-top .landing-nav button { font-size:11px; padding:10px 12px; }
+}
 
 /* Advanced findings: each number is backed by agent telemetry or marked unavailable. */
 .sidebar { overflow-y:auto; }
