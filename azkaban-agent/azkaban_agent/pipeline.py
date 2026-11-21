@@ -78,11 +78,15 @@ class Pipeline:
         return merge(found), tcf.find(pairs + [(k, v) for k, v, via in layers if via])
 
     def process(self, raw: dict) -> Enriched:
+        def s(k: str, cap: int = 512) -> str:
+            v = raw.get(k)
+            return v[:cap] if isinstance(v, str) else ""
+
         flow = Flow(
-            id=raw["id"], ts=int(raw["ts"]), app=raw.get("app") or "unknown",
-            host=raw.get("host", ""), method=raw.get("method", ""), path=raw.get("path", ""),
-            ip=raw.get("ip", ""), decrypted=bool(raw.get("decrypted", True)),
-            bytes=int(raw.get("bytes", 0)),
+            id=s("id", 64) or "unknown", ts=int(raw["ts"]), app=s("app", 128) or "unknown",
+            host=s("host", 255), method=s("method", 16), path=s("path", 2048),
+            ip=s("ip", 64), decrypted=bool(raw.get("decrypted", True)),
+            bytes=max(0, int(raw.get("bytes", 0) or 0)),
         )
         tracker, company = self.trackers.lookup(flow.host) if flow.host else (None, "")
         flow.tracker, flow.company = tracker, company

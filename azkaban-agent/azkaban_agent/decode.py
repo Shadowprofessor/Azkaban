@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import base64
 import binascii
-import gzip
 import re
 import zlib
 from urllib.parse import unquote_plus
@@ -15,6 +14,7 @@ HEX = re.compile(r"^(?:[0-9a-fA-F]{2}){8,}$")
 HASH_LENS = {32, 40, 64}
 MAX_DEPTH = 2
 MAX_LEN = 16384
+MAX_DECOMPRESSED = 256 * 1024  # bomb guard: never inflate beyond this
 
 
 def _printable(b: bytes) -> str | None:
@@ -28,17 +28,19 @@ def _printable(b: bytes) -> str | None:
     return s if ok / len(s) > 0.9 else None
 
 
+def _bounded_inflate(b: bytes, wbits: int) -> bytes | None:
+    """Inflate at most MAX_DECOMPRESSED bytes: a bomb is truncated, never fully expanded."""
+    try:
+        return zlib.decompressobj(wbits).decompress(b, MAX_DECOMPRESSED)
+    except zlib.error:
+        return None
+
+
 def _maybe_gunzip(b: bytes) -> bytes | None:
     if b[:2] == b"\x1f\x8b":
-        try:
-            return gzip.decompress(b)
-        except (OSError, EOFError):
-            return None
-    if b[:1] == b"\x78":  # zlib header
-        try:
-            return zlib.decompress(b)
-        except zlib.error:
-            return None
+        return _bounded_inflate(b, 16 + zlib.MAX_WBITS)  # gzip container
+    if b[:1] == b"\x78":
+        return _bounded_inflate(b, zlib.MAX_WBITS)  # zlib container
     return None
 
 
