@@ -85,6 +85,15 @@ chrome.permissions.onRemoved.addListener(async ({ permissions }) => {
     await chrome.action.setBadgeText({ text: "" });
   }
 });
+chrome.windows.onRemoved.addListener(async (windowId) => {
+  const key = `picker:${windowId}`;
+  const { [key]: picker } = await chrome.storage.session.get(key);
+  if (!picker) return;
+  await chrome.storage.session.remove(key);
+  await chrome.tabs.sendMessage(picker.tabId, {
+    type: "ghostprint-picker-result", request: picker.request, canceled: true
+  }, { documentId: picker.documentId }).catch(() => {});
+});
 chrome.runtime.onMessage.addListener((message, sender, respond) => {
   if (message === "capture") capture();
   if (message?.type !== "open-picker" || !sender.tab || sender.frameId !== 0 || !sender.documentId ||
@@ -97,6 +106,12 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
   if (typeof message.target === "string" && /^[a-z0-9.-]{1,253}$/i.test(message.target)) query.set("target", message.target);
   chrome.windows.create({ url: chrome.runtime.getURL("picker.html") + "?" + query, type: "popup",
     width: 570, height: 640, focused: true })
-    .then(() => respond({ opened: true }), () => respond({ opened: false }));
+    .then(async (window) => {
+      await chrome.storage.session.set({
+        [`picker:${window.id}`]: { tabId: sender.tab.id, documentId: sender.documentId, request: message.request }
+      });
+      respond({ opened: true });
+    })
+    .catch(() => respond({ opened: false }));
   return true;
 });

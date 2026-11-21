@@ -6,6 +6,7 @@ label { display: grid; gap: 3px; margin: 8px 0; }
 input, button { font: inherit; background: #213534; color: inherit; border: 1px solid #526963; border-radius: 5px; padding: 7px; }
 button { display: block; width: 100%; margin: 6px 0; cursor: pointer; }
 button:disabled { opacity: .5; cursor: default; }
+button[hidden] { display: none; }
 .picker { box-sizing: border-box; width: 100%; padding: 20px; }
 .picker ul { list-style: none; margin: 0; padding: 0; }
 .picker li button { text-align: left; overflow-wrap: anywhere; }

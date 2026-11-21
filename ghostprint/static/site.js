@@ -2,16 +2,18 @@ const websiteForm = byId("website-form");
 const websiteStatus = byId("website-status");
 const websiteResults = byId("website-results");
 const websiteReview = byId("website-review");
-const checkWebsite = byId("check-website");
+const websiteInput = byId("policy-website");
 const pickerControls = [byId("ghostprint-tab-picker"), byId("check-without-account")];
 const pickerMessage = byId("tab-picker-status");
+const cancelTabSelection = byId("cancel-tab-selection");
 let pickerRequest;
 let pickerTimer;
 let pickerTarget;
 let lastCaptureRevision = 0;
-let websiteCheckEpoch = 0;
+let activeWebsiteCheck;
+let policySite;
 
-function showWebsiteReview(result) {
+function showWebsiteReview(result, websiteReview) {
   if (!result.review) return;
   node("h3", `PrivacyGPT review · ${result.site}`, websiteReview);
   if (result.observation) {
@@ -43,9 +45,19 @@ function showQuote(statement, target) {
   linkTo(statement.document, statement.source, target);
 }
 
+function groupStatements(statements, key) {
+  const groups = new Map();
+  for (const statement of statements) {
+    const value = statement[key];
+    if (!groups.has(value)) groups.set(value, []);
+    groups.get(value).push(statement);
+  }
+  return groups;
+}
+
 function summarizeStatements(statements) {
   const summaries = [];
-  for (const [action, items] of Map.groupBy(statements, (item) => item.action)) {
+  for (const [action, items] of groupStatements(statements, "action")) {
     const stances = new Set(items.map((item) => item.stance));
     const position = stances.size > 1 ? "scope varies" :
       stances.has("denied") ? "denied" :
@@ -56,7 +68,7 @@ function summarizeStatements(statements) {
   return summaries.join(", ");
 }
 
-function showWebsite(result) {
+function showWebsite(result, websiteResults) {
   if (result.risks.length) {
     node("h3", "Potential exposure to check", websiteResults);
     for (const risk of result.risks) {
@@ -85,11 +97,14 @@ function showWebsite(result) {
   const captureButton = node("button", result.observation ? "Capture this site again" : "Capture this website’s tab", websiteResults);
   captureButton.type = "button";
   captureButton.addEventListener("click", () => openTabPicker(result.site));
+  const switchButton = node("button", "Check another website", websiteResults);
+  switchButton.type = "button";
+  switchButton.addEventListener("click", () => openTabPicker());
   node("p", "These comparisons cover the available text and this snapshot. A mismatch needs investigation and does not prove a leak. A match does not establish compliance, consent, or server retention.", websiteResults);
 
   node("h3", "What the website says about your data", websiteResults);
   if (!result.statements.length) node("p", "No clear data statements could be extracted from the pages read.", websiteResults);
-  const grouped = Map.groupBy(result.statements, (item) => item.data);
+  const grouped = groupStatements(result.statements, "data");
   for (const [data, statements] of grouped) {
     const summary = node("details", undefined, websiteResults);
     node("summary", `${data} · ${summarizeStatements(statements)}`, summary);
@@ -142,13 +157,13 @@ function finishPicker() {
   clearTimeout(pickerTimer);
   pickerRequest = undefined;
   pickerTarget = undefined;
-  pickerControls.forEach((button) => { button.disabled = false; });
+  cancelTabSelection.hidden = true;
 }
 
 function openTabPicker(target) {
-  if (checkWebsite.disabled || pickerRequest) return;
+  if (pickerRequest) finishPicker();
   byId("website-check").scrollIntoView();
-  pickerControls.forEach((button) => { button.disabled = true; });
+  cancelTabSelection.hidden = false;
   pickerMessage.textContent = "Opening the browser tab picker…";
   pickerRequest = crypto.randomUUID();
   pickerTarget = target;
@@ -157,6 +172,10 @@ function openTabPicker(target) {
 }
 
 for (const button of pickerControls) button.addEventListener("click", () => openTabPicker());
+cancelTabSelection.addEventListener("click", () => {
+  finishPicker();
+  pickerMessage.textContent = "Tab selection canceled.";
+});
 window.addEventListener("message", (event) => {
   const data = event.data;
   if (event.source !== window || event.origin !== location.origin || !pickerRequest || data?.request !== pickerRequest) return;
@@ -174,74 +193,111 @@ window.addEventListener("message", (event) => {
     finishPicker();
     pickerMessage.textContent = data.canceled ? "Tab selection canceled." : "";
     if (data.snapshot?.site) {
-      byId("policy-website").value = data.snapshot.site;
-      const links = target ? specificPolicyLinks() : {};
+      const links = target && siteKey(target) === siteKey(data.snapshot.site) ? specificPolicyLinks(target) : {};
+      setWebsite(data.snapshot.site);
       runSiteCheck({ website: data.snapshot.site, browser_evidence: data.snapshot, ...links });
     }
   }
 });
 
 async function runSiteCheck(data) {
-  if (checkWebsite.disabled) return;
-  const epoch = ++websiteCheckEpoch;
+  activeWebsiteCheck?.abort();
+  const request = new AbortController();
+  activeWebsiteCheck = request;
+  const timeout = AbortSignal.timeout(24000);
+  const signal = AbortSignal.any([request.signal, timeout]);
   if (pickerRequest) {
     finishPicker();
     pickerMessage.textContent = "";
   }
-  pickerControls.forEach((button) => { button.disabled = true; });
-  checkWebsite.disabled = true;
-  websiteResults.replaceChildren();
-  websiteReview.replaceChildren();
-  websiteStatus.textContent = "Reading public policies and checking available evidence…";
+  websiteStatus.textContent = `Checking ${data.website}…`;
   try {
     const response = await fetch("/api/site/check", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data)
+      body: JSON.stringify(data),
+      signal
     });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || "Could not check the site.");
-    if (epoch !== websiteCheckEpoch) return;
+    if (activeWebsiteCheck !== request) return;
     if (result.capture_revision) lastCaptureRevision = Math.max(lastCaptureRevision, result.capture_revision);
+    const review = document.createDocumentFragment();
+    const results = document.createDocumentFragment();
+    showWebsiteReview(result, review);
+    showWebsite(result, results);
+    websiteReview.replaceChildren(review);
+    websiteResults.replaceChildren(results);
     websiteStatus.textContent = `Check complete for ${result.site}`;
-    showWebsiteReview(result);
-    showWebsite(result);
   } catch (error) {
-    if (epoch === websiteCheckEpoch) {
-      websiteStatus.textContent = error instanceof TypeError ? "Could not reach the local GhostPrint dashboard." : error.message;
+    if (activeWebsiteCheck === request) {
+      const message = timeout.aborted ? "The website check timed out. Try again." : error.message;
+      websiteStatus.textContent = `Could not check ${data.website}. ${message}`;
     }
   } finally {
-    checkWebsite.disabled = false;
-    pickerControls.forEach((button) => { button.disabled = false; });
+    if (activeWebsiteCheck === request) activeWebsiteCheck = undefined;
   }
 }
 
-function specificPolicyLinks() {
+function siteKey(website) {
+  try {
+    return new URL(website.includes("://") ? website : `https://${website}`).hostname.replace(/^www\./, "");
+  } catch {
+    return "";
+  }
+}
+
+const privacyInput = byId("policy-privacy");
+const termsInput = byId("policy-terms");
+websiteInput.addEventListener("input", () => clearOtherPolicyLinks(websiteInput.value.trim()));
+for (const input of [privacyInput, termsInput]) {
+  input.addEventListener("input", () => { policySite = siteKey(websiteInput.value.trim()); });
+}
+
+function setWebsite(site) {
+  websiteInput.value = site;
+  clearOtherPolicyLinks(site);
+}
+
+function clearOtherPolicyLinks(site) {
+  if (siteKey(site) !== policySite) {
+    privacyInput.value = "";
+    termsInput.value = "";
+    policySite = undefined;
+  }
+}
+
+function specificPolicyLinks(site) {
+  if (siteKey(site) !== policySite) return {};
   return {
-    privacy_url: byId("policy-privacy").value.trim() || null,
-    terms_url: byId("policy-terms").value.trim() || null
+    privacy_url: privacyInput.value.trim() || null,
+    terms_url: termsInput.value.trim() || null
   };
 }
 
 websiteForm.addEventListener("submit", (event) => {
   event.preventDefault();
+  const site = websiteInput.value.trim();
+  const links = specificPolicyLinks(site);
+  setWebsite(site);
   runSiteCheck({
-    website: byId("policy-website").value.trim(),
-    ...specificPolicyLinks()
+    website: site,
+    ...links
   });
 });
 
 document.addEventListener("ghostprint:browser-captures", (event) => {
-  if (checkWebsite.disabled || pickerRequest) return;
+  if (activeWebsiteCheck || pickerRequest) return;
   const latest = Object.entries(event.detail).reduce((best, entry) => entry[1] > best[1] ? entry : best, ["", lastCaptureRevision]);
   if (!latest[0]) return;
   lastCaptureRevision = latest[1];
-  byId("policy-website").value = latest[0];
+  setWebsite(latest[0]);
   runSiteCheck({ website: latest[0] });
 });
 
 document.addEventListener("ghostprint:browser-captures-cleared", () => {
-  ++websiteCheckEpoch;
+  activeWebsiteCheck?.abort();
+  activeWebsiteCheck = undefined;
   finishPicker();
   websiteReview.replaceChildren();
   websiteResults.replaceChildren();

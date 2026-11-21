@@ -72,7 +72,9 @@ class WebsitePolicyTest(unittest.TestCase):
                     self.assertEqual(observed["permissions"], {"camera": "denied"})
                     self.assertEqual(links, [PRIVACY])
                     with urlopen(base + "/api/live", timeout=3) as response:
-                        self.assertEqual(json.load(response), {"sites": [], "captures": {host: first["capture_revision"]}})
+                        self.assertEqual(json.load(response), {
+                            "sites": [], "captures": {host: first["capture_revision"]}, "paired_captures": {},
+                        })
                     self.assertEqual(send({"website": host})["capture_revision"], first["capture_revision"])
                     evidence["observation"] = {**snapshot(), "forms": ["payment"]}
                     evidence["permissions"] = {"camera": "granted"}

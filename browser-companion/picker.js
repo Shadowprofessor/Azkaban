@@ -2,13 +2,15 @@ const params = new URLSearchParams(location.search);
 const dashboardTab = Number(params.get("tab"));
 const dashboardDocument = params.get("document");
 const auditRequest = params.get("request");
-const targetSite = params.get("target")?.replace(/^www\./, "");
+let targetSite = params.get("target")?.replace(/^www\./, "");
 const listButton = document.getElementById("list-tabs");
+const showAllButton = document.getElementById("show-all-tabs");
 const cancelButton = document.getElementById("cancel-picker");
 const pickerStatus = document.getElementById("picker-status");
 const tabList = document.getElementById("open-tabs");
 let alreadyListed = false;
 let finished = false;
+let listedTabs = [];
 
 function notifyDashboard(result) {
   return chrome.tabs.sendMessage(dashboardTab, { type: "ghostprint-picker-result", request: auditRequest, ...result },
@@ -46,9 +48,17 @@ function displayTabs(tabs) {
 }
 
 async function loadTabList() {
-  displayTabs(await chrome.tabs.query({}));
+  listedTabs = await chrome.tabs.query({});
+  displayTabs(listedTabs);
   listButton.textContent = "Refresh tabs";
+  showAllButton.hidden = !targetSite;
 }
+
+showAllButton.addEventListener("click", () => {
+  targetSite = undefined;
+  showAllButton.hidden = true;
+  displayTabs(listedTabs);
+});
 
 listButton.addEventListener("click", async () => {
   listButton.disabled = true;

@@ -86,7 +86,8 @@ def dashboard(report, port, voice_model=None):
                 self.send_header("Content-Length", "0")
                 self.end_headers()
             elif self.path == "/api/live":
-                self.send_json(200, {"sites": activity.snapshot(), "captures": activity.capture_revisions()})
+                self.send_json(200, {"sites": activity.snapshot(), "captures": activity.capture_revisions(),
+                                     "paired_captures": activity.capture_revisions(paired_only=True)})
             elif self.path == "/api/live/settings":
                 self.send_json(200, {"pairing_code": pairing_code, "voice": voice.enabled,
                                      "read_languages": speech.languages(), "dictation_languages": voice.languages,

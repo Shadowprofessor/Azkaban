@@ -126,7 +126,7 @@ class WebActivity:
                 self._capture_revision += 1
                 self._site_observations[site] = {
                     "observation": {**snapshot, "permissions": checked_permissions or {}},
-                    "links": found or [], "revision": self._capture_revision,
+                    "links": found or [], "revision": self._capture_revision, "paired": record_visit,
                 }
                 if len(self._site_observations) > 200:
                     self._site_observations.pop(next(iter(self._site_observations)))
@@ -162,9 +162,10 @@ class WebActivity:
         with self._lock:
             return self._site_observations.get(site)
 
-    def capture_revisions(self):
+    def capture_revisions(self, *, paired_only=False):
         with self._lock:
-            return {site: capture["revision"] for site, capture in self._site_observations.items()}
+            return {site: capture["revision"] for site, capture in self._site_observations.items()
+                    if not paired_only or capture["paired"]}
 
     def clear(self):
         with self._lock:

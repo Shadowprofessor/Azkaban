@@ -47,9 +47,11 @@ function localNode(tag, text, target) {
 async function refreshSites() {
   const target = ui("recent-sites");
   try {
-    const { sites, captures } = await localRequest("/api/live");
-    document.dispatchEvent(new CustomEvent("ghostprint:browser-captures", { detail: captures || {} }));
-    ui("clear-activity").disabled = !sites.length && !Object.keys(captures || {}).length;
+    const { sites, captures = {}, paired_captures } = await localRequest("/api/live");
+    const paired = paired_captures ?? Object.fromEntries(sites
+      .filter(({ site }) => Object.hasOwn(captures, site)).map(({ site }) => [site, captures[site]]));
+    document.dispatchEvent(new CustomEvent("ghostprint:browser-captures", { detail: paired }));
+    ui("clear-activity").disabled = !sites.length && !Object.keys(captures).length;
     const key = JSON.stringify(sites);
     if (key === activityKey) return;
     activityKey = key;
@@ -62,7 +64,9 @@ async function refreshSites() {
       button.addEventListener("click", () => {
         const website = ui("policy-website");
         website.value = item.site;
+        website.dispatchEvent(new Event("input"));
         website.focus();
+        website.form.requestSubmit();
       });
     }
   } catch {
