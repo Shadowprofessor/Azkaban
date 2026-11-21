@@ -42,6 +42,26 @@ REPORTED_TOPICS = {
     "financial": r"credit cards?|card numbers?|bank accounts?|financial records",
 }
 REPORTED_PATTERNS = {name: re.compile(rf"\b(?:{pattern})\b", re.I) for name, pattern in REPORTED_TOPICS.items()}
+REPORTED_LABELS = {
+    "location": "Location data handling", "contacts": "Contact details", "security": "Account or device data",
+    "permissions": "Sensor or browser permissions", "messages": "Private message contents",
+    "sharing": "Data handled by third parties", "activity": "Personal activity history",
+    "interests": "Advertising or interest profiles", "shopping": "Purchase history",
+    "identity": "Identity details", "financial": "Financial account or card details",
+}
+
+
+def reported_label(category, text):
+    if category == "location" and re.search(r"\b(?:precise location|gps|coordinates?)\b", text, re.I):
+        return "Precise location or coordinates"
+    if category == "security":
+        if re.search(r"\b(?:session tokens?|passwords?|credentials?)\b", text, re.I):
+            return "Credentials or session tokens"
+        if re.search(r"\b(?:device identifiers?|device ids?|user agents?)\b", text, re.I):
+            return "Device identifiers or user agents"
+        if re.search(r"\bip addresses?\b", text, re.I):
+            return "IP addresses"
+    return REPORTED_LABELS[category]
 
 
 def key_name(key):
@@ -114,20 +134,19 @@ def reported_categories(text):
 def generic_evidence(data, suffix):
     results = defaultdict(lambda: {"count": 0, "signals": set(), "locations": [], "precise": 0})
     for location, record in islice(sections(data, suffix), MAX_ITEMS):
-        reported = []
+        report_text = ""
         if isinstance(record, str):
             finding = REPORT_PREFIX.match(record)
             key, separator, value = record.partition(":")
             fields = values_from({key.strip("-* #"): value}) if separator else {}
             if finding:
-                reported = reported_categories(finding[1])
+                report_text = finding[1]
         else:
             fields = values_from(record)
             severity = fields.get("severity", fields.get("risklevel", "")).lower()
             if severity in SEVERITIES and fields.get("status", "").lower() not in {"resolved", "closed", "mitigated", "passed"}:
-                text = " ".join(fields.get(key, "") for key in
-                                ("title", "finding", "description", "details", "summary", "observation", "issue"))
-                reported = reported_categories(text)
+                report_text = " ".join(fields.get(key, "") for key in
+                                       ("title", "finding", "description", "details", "summary", "observation", "issue"))
         for category, signal in observed_fields(fields).items():
             result = results[category, "observed"]
             result["count"] += 1
@@ -140,10 +159,10 @@ def generic_evidence(data, suffix):
                     result["precise"] += 1
             if len(result["locations"]) < 3:
                 result["locations"].append(location)
-        for category in reported:
+        for category in reported_categories(report_text):
             result = results[category, "reported"]
             result["count"] += 1
-            result["signals"].add("The report states a finding. Independent verification is unavailable.")
+            result["signals"].add(reported_label(category, report_text))
             if len(result["locations"]) < 3:
                 result["locations"].append(location)
     return results

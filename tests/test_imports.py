@@ -3,6 +3,7 @@ import json
 import unittest
 from zipfile import ZipFile
 
+from ghostprint.analyst import analyze
 from ghostprint.imports import import_batch
 
 
@@ -36,6 +37,26 @@ class ImportReviewTest(unittest.TestCase):
         report = import_batch(io.BytesIO(data), len(data))
         self.assertIsNone(report["review"]["score"])
         self.assertEqual(report["coverage"][0]["unrecognized_files"], 1)
+
+    def test_automatic_review_includes_a_fix_for_every_finding(self):
+        rows = [
+            {"id": f"Export {number}, file 1", "platform": f"Platform {number}",
+             "category": "contacts", "kind": "Contact records", "count": number}
+            for number in range(1, 16)
+        ]
+        rows.append({"id": "Export 16, file 1", "platform": "Uploaded reports", "category": "security",
+                     "kind": "Report findings", "count": 1, "origin": "reported",
+                     "signal": "Device identifiers or user agents"})
+        review = analyze("", {"analyst_sources": rows}, automatic=True)
+        self.assertEqual(len(review["claims"]), 16)
+        self.assertTrue(all(item["fix"]["steps"] for item in review["claims"]))
+        scores = [item["score"] for item in review["claims"]]
+        self.assertEqual(scores, sorted(scores, reverse=True))
+        reported = review["claims"][-1]
+        self.assertTrue(reported["reported"])
+        self.assertIn("device identifiers", reported["claim"])
+        self.assertIn("Check the reported issue", reported["fix"]["steps"][0])
+        self.assertIn("mask identifiers", reported["fix"]["steps"][1])
 
     def test_batch_rejects_unsafe_names_and_incomplete_bodies(self):
         for name in ("../contacts.json", "C:\\contacts.json", "NUL.zip"):

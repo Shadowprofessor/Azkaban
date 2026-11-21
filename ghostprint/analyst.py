@@ -163,6 +163,7 @@ def claim(text, evidence, level, basis, category, platform, flags=None, *, recor
     return {
         "claim": text, "evidence": evidence, "confidence": {"level": level, "basis": basis},
         "risk": {"level": risk, "why": why}, "category": category, "platform": platform,
+        "reported": reported,
         "score": min(100, SCORE_BASE[risk] + min(14, int(5 * log10(records + 1)))),
     }
 
@@ -172,10 +173,20 @@ def action_for(item):
     title, steps = GENERIC_ACTIONS[category]
     guides = retrieve(category, platform="Google" if platform == "YouTube" else platform, category=category, k=1)
     guide = guides[0] if guides and platform else None
+    steps = guide["steps"] if guide else steps
+    if item["reported"] and platform == "Uploaded reports" and category == "security":
+        if any("Credentials or session tokens" in signal for signal in item["signals"]):
+            title = "Review potential credential exposure"
+            steps = ["Restrict access to the affected records. Revoke or rotate credentials confirmed to be exposed."]
+        else:
+            title = "Limit access to network and device identifiers"
+            steps = ["Restrict access to the records. Remove or mask identifiers that are not needed."]
+    if item["reported"]:
+        steps = ["Check the reported issue against the original records or current settings."] + steps
     return {"title": f"{platform} · {guide['title'] if guide else title}" if platform else title,
             "reason": item["risk"]["why"], "impact": item["risk"]["level"],
             "difficulty": "Medium" if category in {"messages", "location", "contacts", "shopping"} else "Low",
-            "steps": guide["steps"] if guide else steps, "url": guide["url"] if guide else None}
+            "steps": steps, "url": guide["url"] if guide else None}
 
 
 def count_in(row, year):
@@ -213,7 +224,8 @@ def discovery(rows, year, *, qualifier=""):
             text += f" for {year}." if year else "."
         signals = sorted({row["signal"] for row, value in zip(group, values) if value and row.get("signal")})
         if origin == "reported":
-            text = f"The uploaded reports describe {count:,} {LABELS[category]} finding{'s' if count != 1 else ''}. Verification is unavailable."
+            subject = "; ".join(signals).lower() or LABELS[category]
+            text = f"The uploaded reports flag {subject} in {count:,} finding{'s' if count != 1 else ''}."
         elif origin == "observed":
             text = f"The uploaded files contain {count:,} records with {LABELS[category]} fields."
         elif category == "permissions":
@@ -226,6 +238,9 @@ def discovery(rows, year, *, qualifier=""):
         if origin != "reported":
             evidence += source_facts([(row, f"Observed fields: {row['signal']}.")
                                       for row, value in zip(group, values) if value and row.get("signal")])
+        else:
+            evidence += source_facts([(row, f"Reported concern: {row['signal']}.")
+                                      for row, value in zip(group, values) if value and row.get("signal")])
         for flag, label in (
             ("precise_coordinates", "rows with precise coordinate fields"),
             ("home_with_coordinates", "coordinate rows labeled home"),
@@ -235,8 +250,11 @@ def discovery(rows, year, *, qualifier=""):
                 evidence += evidence_counts(group, [row.get("flags", {}).get(flag, 0) for row in group], label)
         basis = ("The wording appears in the uploaded report. The underlying real-world claim is unverified."
                  if origin == "reported" else "The counted record type or field appears in the available data.")
-        claims.append(claim(text, evidence, "Medium" if origin == "reported" else "High",
-                            basis, category, platform, flags, records=count, reported=origin == "reported"))
+        item = claim(text, evidence, "Medium" if origin == "reported" else "High",
+                     basis, category, platform, flags, records=count, reported=origin == "reported")
+        if origin == "reported":
+            item["signals"] = signals
+        claims.append(item)
     return claims
 
 
@@ -389,7 +407,7 @@ def analyze(prompt, report, live_sites=(), live_permissions=None, *, automatic=F
     specific_target = re.search(r"\bwhat (?:does|did) (.+?) (?:know|collect|store)\b", prompt)
 
     if automatic:
-        claims = discovery(rows, None) + topics(rows, None, "") + activity_claims(rows, None, False)
+        claims = discovery(rows, None)
         limitations.append("The review covers supported records in this import. Missing or unrecognized records are outside its scope.")
     elif not requested and specific_target:
         claims = []
@@ -458,27 +476,23 @@ def analyze(prompt, report, live_sites=(), live_permissions=None, *, automatic=F
         }
     claims.sort(key=lambda i: (-RISK_ORDER[i["risk"]["level"]], -i["score"], -BENEFIT[i["category"]], i["platform"] or ""))
     score = max(item["score"] for item in claims)
-    finding_count = len(claims)
-    # Keep the strongest topic and timing signals visible in a long automatic review.
-    if automatic and len(claims) > 12:
-        insights = [item for item in claims if item.get("topic") or "UTC hour" in item["claim"]][:3]
-        primary = [item for item in claims if item not in insights][:12 - len(insights)]
-        claims = primary + insights
-    else:
+    if not automatic:
         claims = claims[:12]
     actions = {}
     for item in claims:
-        key = item["platform"], item["category"]
+        key = item["platform"], item["category"], item["reported"]
         if key not in actions:
             actions[key] = action_for(item)
         item["recommendation"] = actions[key]["title"]
+        if automatic:
+            item["fix"] = actions[key]
     level = min((item["confidence"]["level"] for item in claims), key=("Low", "Medium", "High").index)
     headline = claims[0]["claim"]
     if plan:
-        headline = f"Start with {actions[claims[0]['platform'], claims[0]['category']]['title']}."
+        headline = f"Start with {claims[0]['recommendation']}."
     elif automatic:
-        noun = "finding" if finding_count == 1 else "findings"
-        headline = f"PrivacyGPT found {finding_count} supported {noun}. " + headline
+        noun = "finding" if len(claims) == 1 else "findings"
+        headline = f"{len(claims)} {noun} from the uploaded files, highest priority first."
     elif len(categories) == 1 and categories & {"location", "contacts"} and len(claims) > 1:
         services = ", ".join(sorted({item["platform"] for item in claims if item["platform"]}))
         headline = f"The supplied evidence contains {LABELS[next(iter(categories))]} records from {services}."
@@ -494,4 +508,5 @@ def analyze(prompt, report, live_sites=(), live_permissions=None, *, automatic=F
         "risk": claims[0]["risk"], "actions": list(actions.values())[:5], "limitations": limitations,
         "profile": profile_summary(claims, broker) if profile_view else [],
         "score": score,
+        **({"insights": topics(rows, None, "") + activity_claims(rows, None, False)} if automatic else {}),
     }

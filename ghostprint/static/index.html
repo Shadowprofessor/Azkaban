@@ -19,10 +19,13 @@
       <h2>Import your data</h2>
       <p>Select reports or exports to analyze together. GhostPrint starts the review on this laptop as soon as you choose the files.</p>
       <div class="controls import-controls">
-        <label>Platform hint <select id="import-platform"><option value="">Auto-detect</option></select></label>
         <label for="import-files" class="import-label">Choose report or export files</label>
         <input id="import-files" type="file" multiple accept=".zip,.pdf,.docx,.xlsx,.csv,.tsv,.json,.jsonl,.ndjson,.xml,.txt,.md,.log,.html,.htm,.js,.vcf" aria-describedby="import-help">
       </div>
+      <details>
+        <summary>Import options</summary>
+        <p><label>Platform hint <select id="import-platform"><option value="">Auto-detect</option></select></label></p>
+      </details>
       <p id="import-help" class="shortcut">ZIP, PDF, Word, Excel, CSV, JSON, text, and other supported formats · Up to eight files and 512 MiB total</p>
       <p id="import-status" role="status"></p>
     </section>
@@ -40,6 +43,30 @@
         <p>Each finding starts at 20 for Low, 45 for Medium, 70 for High, or 95 for Critical risk. A bounded record-count adjustment adds up to 14 points, with a maximum score of 100. The overall score is the highest finding score. A score describes exposure in the supplied records. Confidence is reported separately.</p>
       </details>
       <div id="review-result"></div>
+    </section>
+    <section data-archive-section>
+      <div class="section-head"><h2>Footprint map</h2><button id="download" hidden>Download report</button></div>
+      <p>Each cell shows records found in the exports you supplied.</p>
+      <div class="table-wrap" id="map"></div>
+    </section>
+    <section id="patterns" data-archive-section hidden>
+      <h2>Activity patterns</h2>
+      <div id="charts" class="grid"></div>
+    </section>
+    <section id="model-demo" hidden>
+      <h2>Model-grounded demo</h2>
+      <div id="model-response"></div>
+    </section>
+    <section data-archive-section>
+      <details id="platform-details">
+        <summary>Platform record details</summary>
+        <p><label>Platform <select id="filter"><option value="">All platforms</option></select></label></p>
+        <div id="actions"></div>
+      </details>
+    </section>
+    <section data-archive-section id="import-coverage">
+      <h2>Import coverage</h2>
+      <div id="coverage"></div>
     </section>
     <section id="live-tools">
       <h2>Live website activity</h2>
@@ -62,7 +89,7 @@
     </section>
     <section>
       <details id="follow-up">
-      <summary>Ask a follow-up question</summary>
+      <summary>Optional privacy assistant</summary>
       <form id="ask-form">
         <label for="ask-mode">Answer mode</label>
         <select id="ask-mode">
@@ -101,31 +128,6 @@
         <div id="ask-result"></div>
       </div>
       </details>
-    </section>
-    <section data-archive-section>
-      <div class="section-head"><h2>Footprint map</h2><button id="download" hidden>Download report</button></div>
-      <p>Each cell shows records found in the exports you supplied.</p>
-      <div class="table-wrap" id="map"></div>
-    </section>
-    <section id="patterns" data-archive-section hidden>
-      <h2>Activity patterns</h2>
-      <div id="charts" class="grid"></div>
-    </section>
-    <section id="model-demo" hidden>
-      <h2>Model-grounded demo</h2>
-      <div id="model-response"></div>
-    </section>
-    <section data-archive-section>
-      <div class="section-head">
-        <h2>Fix first</h2>
-        <label>Platform <select id="filter"><option value="">All platforms</option></select></label>
-      </div>
-      <p>Priority reflects the sensitivity and volume of the exported records.</p>
-      <div id="actions"></div>
-    </section>
-    <section data-archive-section>
-      <h2>Import coverage</h2>
-      <div id="coverage"></div>
     </section>
   </main>
 </body>

@@ -38,9 +38,9 @@ General report formats include text-based PDF, Word DOCX, Excel XLSX, CSV, TSV, 
 
 The generic reader recognizes labeled privacy fields and English finding text, including contact details, coordinates, IPs or device identifiers, granted permissions, government identifiers, financial identifiers, and stated audit findings. It cites a page, section, worksheet row, or record number without displaying the original sensitive value. Claims made in an uploaded audit report are marked unverified. External severity labels cannot set the GhostPrint score. A readable file with no recognized evidence remains unscored.
 
-Automatic reviews include an exposure score, evidence and confidence for each finding, and ranked fixes. The score uses the highest finding score, with a base determined by risk severity and a bounded adjustment for the number of records. It describes observed exposure in the supplied files. An import with no supported evidence remains unscored.
+After upload, **Findings and fixes** lists each supported finding in priority order, with its risk, score, and steps to take. Evidence and confidence are available on each card. Concerns stated in a report are marked for verification. The score is the highest finding score, with a base determined by risk severity and a bounded adjustment for record count. Activity and interest inferences are shown separately. An import with no supported evidence remains unscored.
 
-For optional questions, open **Ask a follow-up question** and choose **Analyze my imported data**, or leave the mode on **Automatic** for clearly personal questions. Try “Which services know my location?”, “What was I interested in during 2025?”, or “What could a data broker infer?”
+The **Optional privacy assistant** is below the report. Its **Analyze my imported data** mode can answer follow-up questions about the evidence.
 
 PrivacyGPT answers from file-level counts and evidence references, shows confidence and privacy risk per finding, and ranks actions by risk and privacy benefit. It correlates supported topic labels across Google Search, YouTube, Spotify and other sources that provide readable labels. Timeline questions use parsed timestamps. Year counts can reflect incomplete coverage, and activity timestamps cannot establish when you sleep. Personal questions use the local analysis path even when web lookup is enabled.
 

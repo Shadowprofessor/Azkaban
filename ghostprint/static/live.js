@@ -164,6 +164,7 @@ async function runQuestion() {
 document.addEventListener("ghostprint:report-changed", () => {
   askRequest++;
   sendButton.disabled = false;
+  ui("follow-up").open = false;
   ui("ask-answer").hidden = true;
   ui("ask-result").replaceChildren();
 });

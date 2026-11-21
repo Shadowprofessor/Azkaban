@@ -20,7 +20,53 @@ function linkTo(title, url, target) {
   link.rel = "noopener noreferrer";
 }
 
-function showAnalysis(analysis, target, { compact = false } = {}) {
+function showEvidence(evidence, target) {
+  const list = node("ul", undefined, target);
+  for (const item of evidence) node("li", `${item.source} · ${item.fact}`, list);
+}
+
+function showFixSteps(fix, target) {
+  const steps = node("ol", undefined, target);
+  for (const step of fix.steps) node("li", step, steps);
+  if (fix.url) linkTo("Open platform instructions", fix.url, target);
+}
+
+function showReview(analysis, target) {
+  node("h3", "Findings and fixes", target);
+  node("p", analysis.answer, target);
+  if (!analysis.claims.length) {
+    node("a", "Check import coverage", target).href = "#import-coverage";
+  }
+  for (const [index, finding] of analysis.claims.entries()) {
+    const card = node("article", undefined, target);
+    card.className = "finding-card";
+    node("h4", `Priority ${index + 1} · ${finding.fix.title}`, card);
+    const meta = node("p", undefined, card);
+    const severity = node("strong", `${finding.risk.level} risk · ${finding.score}/100`, meta);
+    severity.className = "finding-risk";
+    node("span", finding.reported ? " · Reported concern" : " · Evidence found in the file", meta);
+    node("p", finding.claim, card);
+    node("p", finding.risk.why, card);
+    node("h5", "How to fix it", card);
+    showFixSteps(finding.fix, card);
+    const evidence = node("details", undefined, card);
+    node("summary", `Evidence · ${finding.confidence.level} confidence`, evidence);
+    node("p", finding.confidence.basis, evidence);
+    showEvidence(finding.evidence, evidence);
+  }
+  if (analysis.insights?.length) {
+    const panel = node("details", undefined, target);
+    node("summary", "Additional activity and interest signals", panel);
+    const list = node("ul", undefined, panel);
+    for (const insight of analysis.insights) {
+      const item = node("li", `${insight.claim} · ${insight.confidence.level} confidence`, list);
+      showEvidence(insight.evidence, item);
+    }
+  }
+  for (const limitation of analysis.limitations) node("p", limitation, target);
+}
+
+function showAnalysis(analysis, target) {
   const headline = node("p", analysis.answer, target);
   headline.className = "analysis-answer";
   if (analysis.profile.length) {
@@ -33,18 +79,10 @@ function showAnalysis(analysis, target, { compact = false } = {}) {
 
   node("h4", "Evidence", target);
   if (!analysis.claims.length) node("p", "No matching records in the available evidence.", target);
-  let evidenceTarget = target;
-  if (compact && analysis.claims.length) {
-    evidenceTarget = node("details", undefined, target);
-    node("summary", "View findings and supporting records", evidenceTarget);
-  }
   for (const claim of analysis.claims) {
-    const figure = node("article", "", evidenceTarget);
+    const figure = node("article", "", target);
     node("h5", claim.claim, figure);
-    const evidence = node("ul", "", figure);
-    for (const item of claim.evidence) {
-      node("li", `${item.source} · ${item.fact}`, evidence);
-    }
+    showEvidence(claim.evidence, figure);
     node("p", `Confidence · ${claim.confidence.level} · ${claim.confidence.basis}`, figure);
     node("p", `Risk · ${claim.risk.level} · ${claim.score}/100 · ${claim.risk.why}`, figure);
     node("p", `Recommendation · ${claim.recommendation}`, figure);
@@ -60,9 +98,7 @@ function showAnalysis(analysis, target, { compact = false } = {}) {
     node("h5", `Priority ${number + 1} · ${action.title}`, item);
     node("p", action.reason, item);
     node("p", `Impact · ${action.impact} · Difficulty · ${action.difficulty}`, item);
-    const steps = node("ol", "", item);
-    for (const step of action.steps) node("li", step, steps);
-    if (action.url) linkTo("Open source", action.url, item);
+    showFixSteps(action, item);
   }
   if (analysis.limitations.length) {
     node("h4", "Limits of the evidence", target);
@@ -89,6 +125,7 @@ function showMap(report, platforms) {
         button.className = "map-cell";
         button.setAttribute("aria-label", `${platform} ${labels[category]}: ${finding.count} records`);
         button.addEventListener("click", () => {
+          byId("platform-details").open = true;
           byId("filter").value = platform;
           showActions(report);
           const action = byId(`action-${platform}-${category}`);
@@ -213,6 +250,7 @@ function renderReport(report) {
   }
   for (const section of document.querySelectorAll("[data-archive-section]")) section.hidden = !!report.live_only;
   byId("model-demo").hidden = true;
+  byId("platform-details").open = false;
   byId("automatic-review").hidden = !report.review;
   if (report.review) {
     const score = report.review.score;
@@ -221,7 +259,7 @@ function renderReport(report) {
     meter.value = score ?? 0;
     byId("risk-score").textContent = score == null ? "Insufficient evidence" :
       `${score}/100 · ${report.review.risk.level}`;
-    showAnalysis(report.review, byId("review-result"), { compact: true });
+    showReview(report.review, byId("review-result"));
   }
   if (report.live_only) {
     byId("status").textContent = "Live browsing session · processed on this laptop";
