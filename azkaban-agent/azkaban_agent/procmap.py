@@ -41,6 +41,17 @@ class ProcessResolver:
             self._names[pid] = n.removesuffix(".exe")
         return self._names[pid]
 
+    def lookup_pid(self, local_port: int) -> tuple[str, int | None]:
+        """(app name, pid) for the process owning a loopback client socket."""
+        with self._lock:
+            if time.monotonic() - self._stamp > self._ttl or local_port not in self._table:
+                self._refresh()
+            pid = self._table.get(local_port)
+        if pid is None:
+            return "unknown", None
+        name = self._name(pid)
+        return ("android-device" if name == "adb" else name), pid
+
     def lookup(self, local_port: int) -> str:
         with self._lock:
             if time.monotonic() - self._stamp > self._ttl or local_port not in self._table:

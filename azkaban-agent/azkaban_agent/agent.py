@@ -12,6 +12,7 @@ from .blocklist import Blocklist, host_blocked
 from .config import REPO_ROOT
 from .evidence import EvidenceChain
 from .extbridge import ExtensionBridge
+from .flowext import Correlator, IdleSessions, extend as extend_flow
 from .idle import IdleDetector
 from .insights import InsightEngine
 from . import remediate
@@ -36,6 +37,8 @@ class Agent:
         self.ext = ExtensionBridge(self.status, self.on_browser_detection, self.on_site_score)
         self.hub = Hub(self.status, self.on_command, extension=self.ext)
         self.site_scores: dict[str, dict] = {}        # site -> latest extension score
+        self.idle_sessions = IdleSessions()
+        self.correlator = Correlator()
         self.pipeline = Pipeline(cfg)
         self.exposure = ExposureScore()
         self.insights = InsightEngine()
@@ -133,6 +136,9 @@ class Agent:
                         "model": self.pipeline.severity.available, "geo": self.pipeline.geo.available,
                         "nim": self.legal.nim.configured,
                         "remediation": remediate.available()},
+            # Additive (nirmit dashboard): idle labelling state.
+            "idleMonitoring": bool((self.idle is not None and self.idle.available) or self.mode == "replay"),
+            "idleThresholdMs": self.idle_sessions.threshold_ms,
             # Additive (v1): extension bridge state, for the popup's connected indicator.
             "extension": {"connected": self.ext.clients > 0, "version": self.ext.version,
                           "detections": self.ext.detections, "scores": self.ext.scores},
@@ -171,6 +177,12 @@ class Agent:
         if self.blocklist.applied:
             self._blocklist_dirty = True
         flow_dict = enriched.flow.to_dict()
+        # Additive fields for the dashboard: idle session, traffic, process, correlation.
+        # Idle is only labelled when it was really measured (live with a working detector,
+        # or a recording that captured it), never inferred.
+        measured = (self.idle is not None and self.idle.available) or self.mode == "replay"
+        extend_flow(flow_dict, raw, enriched, idle=self.idle_sessions, corr=self.correlator,
+                    idle_measured=measured)
         self.hub.publish({"type": "flow", "flow": flow_dict})
         self.evidence.add_flow(flow_dict)
         f = enriched.flow
@@ -305,6 +317,10 @@ class Agent:
             return
         if t == "blocklist":
             self._blocklist_command(str(cmd.get("action", "generate")))
+            return
+        if t == "configure_idle":
+            self.idle_sessions.set_threshold(cmd.get("inactivityMs"))
+            self.hub.broadcast_status()
             return
         if t == "analyze":
             e = self.recent.get(str(cmd.get("flowId", "")))

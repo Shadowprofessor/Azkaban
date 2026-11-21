@@ -28,3 +28,6 @@ dist/
 
 # stray editor/agent scratch
 Claude outputs/
+
+# dashboard local env
+.env.local

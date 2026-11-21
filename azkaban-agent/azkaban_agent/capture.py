@@ -41,11 +41,21 @@ def _server_ip(server: connection.Server | None) -> str:
     return ""
 
 
+def _duration_ms(flow) -> int:
+    try:
+        end = flow.response.timestamp_end if flow.response else None
+        start = flow.request.timestamp_start
+        return max(0, int(((end or start) - start) * 1000))
+    except Exception:
+        return 0
+
+
 class CaptureAddon:
     def __init__(self, sink: Sink, resolver: ProcessResolver | None = None):
         self.sink = sink
         self.resolver = resolver or ProcessResolver()
         self.apps: dict[str, str] = {}          # client.id -> app name
+        self.pids: dict[str, int] = {}          # client.id -> pid (for the dashboard)
         self.passthrough: set[str] = set()      # hosts that pin certs
         self.blocked: set[str] = set()          # enforced blocklist (Phase 9)
         self.paused = False
@@ -55,10 +65,17 @@ class CaptureAddon:
     async def client_connected(self, client: connection.Client) -> None:
         port = _peer_port(client)
         if port is not None:
-            self.apps[client.id] = await asyncio.to_thread(self.resolver.lookup, port)
+            if hasattr(self.resolver, "lookup_pid"):
+                name, pid = await asyncio.to_thread(self.resolver.lookup_pid, port)
+                self.apps[client.id] = name
+                if pid is not None:
+                    self.pids[client.id] = pid
+            else:
+                self.apps[client.id] = await asyncio.to_thread(self.resolver.lookup, port)
 
     def client_disconnected(self, client: connection.Client) -> None:
         self.apps.pop(client.id, None)
+        self.pids.pop(client.id, None)
 
     def _app(self, client: connection.Client) -> str:
         return self.apps.get(client.id, "unknown")
@@ -140,6 +157,13 @@ class CaptureAddon:
             "path": req.path.split("?", 1)[0],
             "ip": _server_ip(flow.server_conn),
             "bytes": len(req.raw_content or b"") + resp_len,
+            # Direction, protocol and duration as mitmproxy measured them, for the
+            # dashboard's traffic view. Sizes only; no content.
+            "up": len(req.raw_content or b""),
+            "down": resp_len,
+            "proto": str(getattr(req, "http_version", "") or "")[:16],
+            "dur_ms": _duration_ms(flow),
+            "pid": self.pids.get(flow.client_conn.id),
             "decrypted": True,
             "headers": {k: v for k, v in req.headers.items() if k.lower() in KEEP_HEADERS},
             "query": req.path.split("?", 1)[1] if "?" in req.path else "",

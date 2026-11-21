@@ -79,6 +79,10 @@ export function normalise(message, pickFormat = () => 'hosts') {
         // Additive fields from the v1 agent: which reasoning engine answered.
         llmEngine: message.llmEngine || 'none',
         llmModel: message.llmModel || '',
+        // Additive: idle labelling (nirmit's Idle Activity page) and the extension bridge.
+        idleMonitoring: message.idleMonitoring ?? null,
+        idleThresholdMs: Number(message.idleThresholdMs) || null,
+        extension: isObject(message.extension) ? message.extension : null,
       },
     };
   }
@@ -165,4 +169,6 @@ export const COMMANDS = {
   /** The agent takes an action, not a format; the format only chooses the preview. */
   blocklist: (action = 'generate') => ({ type: 'blocklist', action }),
   exportEvidence: () => ({ type: 'export_evidence' }),
+  /** Additive (nirmit): sets the inactivity window the agent uses to call a flow idle. */
+  configureIdle: (inactivityMs) => ({ type: 'configure_idle', inactivityMs: Math.max(0, Number(inactivityMs) || 0) }),
 };
