@@ -152,6 +152,7 @@ export const useAgent = create<State>((set, get) => ({
         }
         case "error":
           patch.errors = [{ code: m.code, message: m.message, at: Date.now() }, ...(patch.errors ?? s.errors)].slice(0, 20);
+          if (m.code === "llm_unavailable" || m.code === "not_found") pendingAnalyze = {};
           if (m.code === "command_failed" || m.code === "llm_unavailable") {
             toasts = [...toasts, { id: ++toastSeq, level: "error" as const, title: m.message }].slice(-3);
           }
