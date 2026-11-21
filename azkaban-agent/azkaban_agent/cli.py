@@ -194,11 +194,22 @@ def main(argv: list[str] | None = None) -> int:
                   "(and do not set AZK_NIM_ENABLED=0).", file=sys.stderr)
             return 1
         if not c.available(force=True):
-            print("[azkaban] endpoint did not accept the key (GET /models failed). "
-                  "Check the key at build.nvidia.com and that this machine has internet.",
+            print("[azkaban] endpoint did not accept the key (GET /models failed).\n"
+                  "          Check the key at build.nvidia.com, and that this machine can\n"
+                  "          reach integrate.api.nvidia.com (corporate proxy / firewall).",
                   file=sys.stderr)
             return 2
         print("[azkaban] endpoint reachable, key accepted.")
+        ids = c.models()
+        if ids and c.model not in ids:
+            near = [m for m in ids if "nemotron" in m.lower()][:8]
+            print(f"[azkaban] WARNING: '{c.model}' is not in the endpoint's model list.",
+                  file=sys.stderr)
+            if near:
+                print("          nemotron models offered: " + ", ".join(near), file=sys.stderr)
+            print("          Set AZK_NIM_MODEL in .env to one of them.", file=sys.stderr)
+        elif ids:
+            print(f"[azkaban] model is listed by the endpoint ({len(ids)} models available).")
         try:
             out = c.ask("You are terse. Answer in plain text with no markdown.", args.prompt,
                         max_tokens=64, log_payload=False)

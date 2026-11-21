@@ -102,3 +102,103 @@ def test_content_handles_content_parts_list():
 def test_content_survives_a_malformed_response():
     assert nim._content({}) == ""
     assert nim._content({"choices": []}) == ""
+
+
+# ------------------------------------------------------------------ transport behaviour
+class FakeResponse:
+    def __init__(self, status: int, body=None, text: str = ""):
+        self.status_code = status
+        self._body = body
+        self.text = text
+
+    def json(self):
+        if self._body is None:
+            raise ValueError("no json")
+        return self._body
+
+
+def reply(text: str = "ok"):
+    return FakeResponse(200, {"choices": [{"message": {"content": text}}]})
+
+
+def run_chat(monkeypatch, responses, **kw):
+    """Drive NimClient.chat against a scripted sequence of responses."""
+    sent: list[dict] = []
+    queue = list(responses)
+
+    def fake_post(url, *, cfg=None, timeout=None, json=None, headers=None):
+        # Snapshot: chat() mutates one payload dict across retries, so storing the
+        # reference would make every captured request look like the last one.
+        sent.append(dict(json))
+        return queue.pop(0)
+
+    monkeypatch.setattr(nim, "http_post", fake_post)
+    out = nim.NimClient(cfg()).chat([{"role": "user", "content": "hi"}],
+                                    log_payload=False, **kw)
+    return out, sent
+
+
+def test_a_plain_success_sends_one_request(monkeypatch):
+    out, sent = run_chat(monkeypatch, [reply("hello")])
+    assert out == "hello"
+    assert len(sent) == 1
+
+
+def test_response_format_is_dropped_when_rejected(monkeypatch):
+    # Some NIM builds 400 on response_format; the prompt already demands JSON.
+    out, sent = run_chat(monkeypatch, [FakeResponse(400, {"detail": "bad response_format"}),
+                                       reply("{}")], json_object=True)
+    assert out == "{}"
+    assert "response_format" in sent[0]
+    assert "response_format" not in sent[1]
+    assert "chat_template_kwargs" in sent[1]       # only the rejected key is dropped
+
+
+def test_chat_template_kwargs_is_dropped_next(monkeypatch):
+    out, sent = run_chat(monkeypatch, [FakeResponse(400, {"detail": "no response_format"}),
+                                       FakeResponse(422, {"detail": "no chat_template_kwargs"}),
+                                       reply("done")], json_object=True)
+    assert out == "done"
+    assert len(sent) == 3
+    assert "chat_template_kwargs" not in sent[2]
+
+
+def test_a_persistent_error_surfaces_the_server_message(monkeypatch):
+    # requests' own message hides the body, which is where NVIDIA says what is wrong.
+    monkeypatch.setattr(nim, "http_post",
+                        lambda *a, **k: FakeResponse(401, {"detail": "invalid api key"}))
+    with pytest.raises(RuntimeError, match="401.*invalid api key"):
+        nim.NimClient(cfg()).chat([], log_payload=False)
+
+
+def test_an_unknown_model_error_is_readable(monkeypatch):
+    monkeypatch.setattr(nim, "http_post",
+                        lambda *a, **k: FakeResponse(404, {"error": {"message": "model not found"}}))
+    with pytest.raises(RuntimeError, match="model not found"):
+        nim.NimClient(cfg()).chat([], log_payload=False)
+
+
+def test_a_gateway_html_error_does_not_crash_the_parser(monkeypatch):
+    monkeypatch.setattr(nim, "http_post",
+                        lambda *a, **k: FakeResponse(502, None, "<html>502 Bad Gateway</html>"))
+    with pytest.raises(RuntimeError, match="502"):
+        nim.NimClient(cfg()).chat([], log_payload=False)
+
+
+def test_non_json_success_body_is_reported_clearly(monkeypatch):
+    monkeypatch.setattr(nim, "http_post", lambda *a, **k: FakeResponse(200, None, "not json"))
+    with pytest.raises(RuntimeError, match="non-JSON"):
+        nim.NimClient(cfg()).chat([], log_payload=False)
+
+
+def test_a_non_400_error_is_not_retried(monkeypatch):
+    calls = {"n": 0}
+
+    def fake_post(*a, **k):
+        calls["n"] += 1
+        return FakeResponse(500, {"detail": "upstream down"})
+
+    monkeypatch.setattr(nim, "http_post", fake_post)
+    with pytest.raises(RuntimeError, match="500"):
+        nim.NimClient(cfg()).chat([], log_payload=False, json_object=True)
+    assert calls["n"] == 1, "a 500 is not a payload problem; retrying is pointless"

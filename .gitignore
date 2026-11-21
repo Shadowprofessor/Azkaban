@@ -25,3 +25,6 @@ train/data/
 
 # packaged extension zips
 dist/
+
+# stray editor/agent scratch
+Claude outputs/

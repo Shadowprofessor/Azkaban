@@ -83,6 +83,22 @@ def _content(data: dict) -> str:
     return text or (msg.get("reasoning_content") or "").strip()
 
 
+def _detail(response) -> str:
+    """The server's own error text, trimmed. Falls back to the raw body."""
+    try:
+        data = response.json()
+    except ValueError:
+        return (response.text or "")[:300].strip() or "(empty body)"
+    if isinstance(data, dict):
+        for key in ("detail", "message", "error"):
+            v = data.get(key)
+            if isinstance(v, str) and v.strip():
+                return v.strip()[:300]
+            if isinstance(v, dict) and isinstance(v.get("message"), str):
+                return v["message"].strip()[:300]
+    return json.dumps(data)[:300]
+
+
 class NimClient:
     """Chat-completions client for one configured model.
 
@@ -129,6 +145,18 @@ class NimClient:
         self._probe = (now, ok)
         return ok
 
+    def models(self) -> list[str]:
+        """Model ids the endpoint advertises. Empty if it cannot be asked."""
+        try:
+            r = http_get(self._models_url(), cfg=self.cfg, timeout=10,
+                         headers={"Authorization": f"Bearer {self.cfg.nim_key}"})
+            if r.status_code != 200:
+                return []
+            data = r.json().get("data") or []
+            return sorted(m.get("id", "") for m in data if isinstance(m, dict) and m.get("id"))
+        except Exception:
+            return []
+
     # ------------------------------------------------------------------ chat
     def payload(self, messages: list[dict], *, max_tokens: int = 600, temperature: float = 0.0,
                 json_object: bool = False) -> dict:
@@ -141,23 +169,44 @@ class NimClient:
             p["response_format"] = {"type": "json_object"}
         return p
 
+    #: Payload keys that some NIM builds reject. Dropped one at a time, in this order,
+    #: before giving up: each is an optimisation, not a requirement.
+    OPTIONAL_KEYS = ("response_format", "chat_template_kwargs")
+
+    def _post(self, payload: dict, timeout: int):
+        return http_post(self.cfg.nim_url, cfg=self.cfg, timeout=timeout, json=payload,
+                         headers={"Authorization": f"Bearer {self.cfg.nim_key}"})
+
     def chat(self, messages: list[dict], *, max_tokens: int = 600, temperature: float = 0.0,
              json_object: bool = False, log_payload: bool = True, timeout: int = 120) -> str:
+        """One completion, degrading gracefully when the endpoint rejects an extra.
+
+        `response_format` and `chat_template_kwargs` are supported by the hosted endpoint
+        but not by every self-hosted NIM build or gateway. Rather than fail outright, each
+        is dropped in turn and the call retried: the prompt already demands JSON, and
+        clean() strips a thinking trace, so both are optimisations we can live without.
+        """
         p = self.payload(messages, max_tokens=max_tokens, temperature=temperature,
                          json_object=json_object)
         if log_payload:
             # Transparency: print EXACTLY what leaves the machine.
             print("[azkaban] NIM request (aggregated metadata + public text only):\n"
                   + json.dumps(p, indent=2), file=sys.stderr, flush=True)
-        r = http_post(self.cfg.nim_url, cfg=self.cfg, timeout=timeout, json=p,
-                      headers={"Authorization": f"Bearer {self.cfg.nim_key}"})
-        if r.status_code == 400 and json_object:
-            # Not every NIM build accepts response_format; the prompt already demands JSON.
-            p.pop("response_format", None)
-            r = http_post(self.cfg.nim_url, cfg=self.cfg, timeout=timeout, json=p,
-                          headers={"Authorization": f"Bearer {self.cfg.nim_key}"})
-        r.raise_for_status()
-        return _content(r.json())
+        r = self._post(p, timeout)
+        for key in self.OPTIONAL_KEYS:
+            if r.status_code not in (400, 422) or key not in p:
+                break
+            print(f"[azkaban] endpoint rejected '{key}'; retrying without it", file=sys.stderr, flush=True)
+            p.pop(key, None)
+            r = self._post(p, timeout)
+        if r.status_code >= 400:
+            # requests' own message hides the body, which is where NVIDIA says what is
+            # actually wrong (bad key, unknown model, quota). Surface it.
+            raise RuntimeError(f"NIM returned HTTP {r.status_code}: {_detail(r)}")
+        try:
+            return _content(r.json())
+        except ValueError:
+            raise RuntimeError(f"NIM returned non-JSON: {(r.text or '')[:300]}") from None
 
     def ask(self, system: str, user: str, **kw) -> str:
         """One-shot prompt returning sanitised plain text."""
