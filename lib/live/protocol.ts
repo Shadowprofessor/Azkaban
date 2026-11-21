@@ -52,6 +52,20 @@ export interface EvidenceMsg {
   entries: number;
 }
 
+/**
+ * ADDITIVE (v1.1): findings that span many flows. Safe to ignore.
+ * `key` is stable per finding — replace the previous insight with the same key.
+ */
+export interface InsightMsg {
+  type: 'insight';
+  key: string;
+  kind: 'idle_beacons' | 'cross_app' | 'hashed_pii' | 'dns_bypass' | 'bandwidth' | 'honeytoken' | 'recheck';
+  level: 'info' | 'warn' | 'critical';
+  title: string;
+  detail: string;
+  data: Record<string, unknown>;
+}
+
 export interface ErrorMsg {
   type: 'error';
   code: string;
@@ -65,6 +79,7 @@ export type AgentToUi =
   | ScoreMsg
   | BlocklistMsg
   | EvidenceMsg
+  | InsightMsg
   | ErrorMsg;
 
 // ---------------------------------------------------------------- UI -> agent

@@ -7,6 +7,9 @@ import sys
 from . import __version__
 from .config import Config
 from .pipeline import Pipeline
+from .idle import IdleDetector
+from .insights import InsightEngine
+from .netwatch import NetWatch
 from .score import ExposureScore
 from .session import Recorder, read_header, replay
 from .wsserver import Hub, start_ws
@@ -24,6 +27,9 @@ class Agent:
         self.hub = Hub(self.status, self.on_command)
         self.pipeline = Pipeline(cfg)
         self.exposure = ExposureScore()
+        self.insights = InsightEngine()
+        self.idle = IdleDetector() if mode == "live" else None
+        self.netwatch = NetWatch(cfg.proxy_port) if mode == "live" else None
         self.recorder = Recorder(record) if record else None
         self.addon = None
         if mode == "live":
@@ -54,6 +60,8 @@ class Agent:
     def on_raw(self, raw: dict) -> None:
         if not self.capturing:
             return
+        if self.idle is not None and "tsi" not in raw:
+            raw["tsi"] = round(self.idle.seconds() or 0.0, 1)
         if self.recorder:
             self.recorder.write(raw)
         try:
@@ -64,6 +72,11 @@ class Agent:
         self.flow_count += 1
         self.exposure.add(self.pipeline.fact(enriched))
         self.hub.publish({"type": "flow", "flow": enriched.flow.to_dict()})
+        if self.netwatch:
+            f = enriched.flow
+            self.netwatch.learn(f.ip, f.host, f.app)
+        for msg in self.insights.on_flow(enriched):
+            self.hub.publish(msg)
 
     # ------------------------------------------------------------------ commands
     async def on_command(self, cmd: dict) -> None:
@@ -91,8 +104,22 @@ class Agent:
                 except Exception as e:
                     self.hub.error("score", str(e))
 
+    async def _insight_loop(self) -> None:
+        tick = 0
+        while True:
+            await asyncio.sleep(2.0)
+            tick += 1
+            bypass = None
+            if self.netwatch and tick % 5 == 0:   # every ~10s, off the event loop
+                try:
+                    bypass = await asyncio.to_thread(self.netwatch.scan)
+                except Exception:
+                    bypass = None
+            for msg in self.insights.periodic(bypass):
+                self.hub.publish(msg)
+
     async def _serve_ws(self):
-        self._bg = [asyncio.create_task(self._score_loop())]
+        self._bg = [asyncio.create_task(self._score_loop()), asyncio.create_task(self._insight_loop())]
         ws = await start_ws(self.hub, self.cfg.ws_port)
         log(f"dashboard socket ws://127.0.0.1:{self.cfg.ws_port}")
         return ws
