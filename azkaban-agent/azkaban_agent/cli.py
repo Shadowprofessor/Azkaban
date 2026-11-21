@@ -29,7 +29,18 @@ def main(argv: list[str] | None = None) -> int:
         from .safety import require_loopback, require_ownership
         require_ownership(args.owns)
         require_loopback(args.listen_host, "proxy")
-        print("[azkaban] capture not implemented yet")
+        import asyncio
+        from .agent import Agent
+        from .config import Config
+        cfg = Config.from_env()
+        if args.proxy_port:
+            cfg.proxy_port = args.proxy_port
+        if args.ws_port:
+            cfg.ws_port = args.ws_port
+        try:
+            asyncio.run(Agent(cfg).run())
+        except KeyboardInterrupt:
+            pass
         return 0
     return 1
 
