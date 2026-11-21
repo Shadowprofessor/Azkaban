@@ -54,6 +54,8 @@ python -m ghostprint live
 
 ## Check a website's privacy policy and terms
 
+For ongoing browser observations, open the paired companion on the target tab and choose **Monitor this tab for 10 minutes**. When available, updated resource destinations and recognized URL parameter categories refresh that site's PrivacyGPT review. The browser samples about every five seconds, subject to timer throttling. Use **Stop live tab monitoring** to end the session early. Closing or leaving the page also ends it. This uses browser Resource Timing, whose buffer is finite. It covers resources visible to that page and excludes packet capture, request bodies, decrypted TLS traffic, and other apps.
+
 PrivacyGPT shows the data it found alongside the prioritized findings. Website reviews include public policy disclosures and the available browser evidence. Import reviews list recognized record types and link to file coverage. Connected accounts show how many authorized records were examined. A score requires evidence that supports a finding.
 
 If a public policy document is readable, **Search the web for public privacy reports** opens a search using the website hostname. Search results are external leads to verify before treating them as findings.

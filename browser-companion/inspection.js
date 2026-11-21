@@ -1,4 +1,4 @@
-async function inspectPage(expectedUrl) {
+async function inspectPage(expectedUrl, liveResources) {
   if (expectedUrl && location.href !== expectedUrl) return null;
   const pattern = /^\/(?:[a-z]{2}(?:-[a-z]{2})?\/)?(?:legal\/|policies\/)?(?:privacy(?:[-_]policy|[-_]notice)?|data[-_]deletion|delete[-_]account|cookie[-_]policy|cookies|terms(?:[-_]of[-_](?:use|service)|[-_]and[-_]conditions)?|user[-_]agreement)(?:\.html?)?\/?$/i;
   const links = new Set();
@@ -46,7 +46,8 @@ async function inspectPage(expectedUrl) {
   }
   const hosts = new Set();
   const seen = new Map();
-  const entries = performance.getEntriesByType("navigation").concat(performance.getEntriesByType("resource")).slice(0, 500);
+  const entries = performance.getEntriesByType("navigation").slice(0, 1)
+    .concat((liveResources ?? performance.getEntriesByType("resource")).slice(-499));
   for (const entry of entries) {
     if (!URL.canParse(entry.name)) continue;
     const url = new URL(entry.name);

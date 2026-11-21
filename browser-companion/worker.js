@@ -94,8 +94,33 @@ chrome.windows.onRemoved.addListener(async (windowId) => {
     type: "ghostprint-picker-result", request: picker.request, canceled: true
   }, { documentId: picker.documentId }).catch(() => {});
 });
+
+async function updateLiveWatch(message, sender) {
+  const { networkWatch } = await chrome.storage.session.get("networkWatch");
+  if (!networkWatch || networkWatch.id !== message.sessionId || networkWatch.tab !== sender.tab?.id ||
+      sender.frameId !== 0 || sender.origin !== networkWatch.origin) return false;
+  if (message.type === "stop-live-watch" || networkWatch.expires <= Date.now()) {
+    await chrome.storage.session.remove("networkWatch");
+    return false;
+  }
+  if (message.snapshot) {
+    if (message.snapshot.site !== new URL(networkWatch.origin).hostname) return false;
+    await send(networkWatch, message.snapshot);
+  }
+  return true;
+}
+
+chrome.tabs.onRemoved.addListener(async (tabId) => {
+  const { networkWatch } = await chrome.storage.session.get("networkWatch");
+  if (networkWatch?.tab === tabId) await chrome.storage.session.remove("networkWatch");
+});
+
 chrome.runtime.onMessage.addListener((message, sender, respond) => {
   if (message === "capture") capture();
+  if (message?.type === "live-watch" || message?.type === "stop-live-watch") {
+    updateLiveWatch(message, sender).then((active) => respond({ active }), () => respond({ active: false }));
+    return true;
+  }
   if (message?.type !== "open-picker" || !sender.tab || sender.frameId !== 0 || !sender.documentId ||
       !/^[a-f0-9-]{36}$/.test(message.request)) return;
   const origin = new URL(sender.url);
