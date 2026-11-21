@@ -70,6 +70,12 @@ def hostname(value):
     return value.lower()
 
 
+def browser_hostname(value):
+    if isinstance(value, str) and re.fullmatch(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?", value, re.I):
+        return value.lower()
+    return hostname(value)
+
+
 def safe_links(site, links):
     if not isinstance(links, list) or len(links) > 8:
         raise ValueError("Expected a short list of website links.")
@@ -101,10 +107,11 @@ class WebActivity:
         self._links = {}
         self._permission_checks = {}
         self._site_observations = {}
+        self._capture_revision = 0
         self._lock = Lock()
 
-    def add(self, site, links=None, permissions=None, observation=None):
-        site = hostname(site)
+    def add(self, site, links=None, permissions=None, observation=None, *, record_visit=True):
+        site = browser_hostname(site) if observation is not None else hostname(site)
         found = safe_links(site, links) if links is not None else None
         snapshot = validate_observation(observation) if observation is not None else None
         checked_permissions = validate_permissions(permissions) if permissions is not None else None
@@ -116,13 +123,18 @@ class WebActivity:
                 if len(self._permission_checks) > 200:
                     self._permission_checks.pop(next(iter(self._permission_checks)))
             if snapshot is not None:
-                self._site_observations[site] = snapshot
+                self._capture_revision += 1
+                self._site_observations[site] = {
+                    "observation": {**snapshot, "permissions": checked_permissions or {}},
+                    "links": found or [], "revision": self._capture_revision,
+                }
                 if len(self._site_observations) > 200:
                     self._site_observations.pop(next(iter(self._site_observations)))
-            if not self._events or self._events[-1]["site"] != site or links is None:
+            if record_visit and (not self._events or self._events[-1]["site"] != site or links is None):
                 self._events.append({"site": site, "seen": datetime.now(UTC).isoformat(timespec="seconds")})
             if len(self._links) > 200:
                 self._links.pop(next(iter(self._links)))
+            return self._site_observations.get(site) if snapshot is not None else None
 
     def snapshot(self):
         with self._lock:
@@ -143,11 +155,16 @@ class WebActivity:
                            for name, state in check.items() if state == "granted")
 
     def site_observation(self, site):
+        capture = self.site_capture(site)
+        return capture["observation"] if capture else None
+
+    def site_capture(self, site):
         with self._lock:
-            checked = self._site_observations.get(site)
-            if checked is None:
-                return None
-            return {**checked, "permissions": self._permission_checks.get(site, {}).copy()}
+            return self._site_observations.get(site)
+
+    def capture_revisions(self):
+        with self._lock:
+            return {site: capture["revision"] for site, capture in self._site_observations.items()}
 
     def clear(self):
         with self._lock:

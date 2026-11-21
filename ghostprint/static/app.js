@@ -31,10 +31,10 @@ function showFixSteps(fix, target) {
   if (fix.url) linkTo("Open platform instructions", fix.url, target);
 }
 
-function showReview(analysis, target, source = "the file") {
+function showReview(analysis, target, source = "the file", coverageLink = true) {
   node("h3", "Findings and fixes", target);
   node("p", analysis.answer, target);
-  if (!analysis.claims.length) {
+  if (!analysis.claims.length && coverageLink) {
     node("a", "Check import coverage", target).href = "#import-coverage";
   }
   for (const [index, finding] of analysis.claims.entries()) {

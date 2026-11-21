@@ -94,6 +94,7 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
   const query = new URLSearchParams({
     tab: sender.tab.id, document: sender.documentId, request: message.request
   });
+  if (typeof message.target === "string" && /^[a-z0-9.-]{1,253}$/i.test(message.target)) query.set("target", message.target);
   chrome.windows.create({ url: chrome.runtime.getURL("picker.html") + "?" + query, type: "popup",
     width: 570, height: 640, focused: true })
     .then(() => respond({ opened: true }), () => respond({ opened: false }));

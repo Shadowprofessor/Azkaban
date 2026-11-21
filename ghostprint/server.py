@@ -14,10 +14,10 @@ from .connections import PROVIDERS, ConnectionProblem, Connections
 from .model import rank
 from .imports import import_batch
 from .public_pages import public_url
-from .site_policy import validate_observation, website_check
+from .site_policy import browser_only_website, review_website, website_check
 from .speech import Speech
 from .voice import LocalVoice
-from .web_activity import WebActivity, answer, hostname, safe_links, validate_permissions
+from .web_activity import WebActivity, answer, browser_hostname, hostname
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -86,7 +86,7 @@ def dashboard(report, port, voice_model=None):
                 self.send_header("Content-Length", "0")
                 self.end_headers()
             elif self.path == "/api/live":
-                self.send_json(200, {"sites": activity.snapshot()})
+                self.send_json(200, {"sites": activity.snapshot(), "captures": activity.capture_revisions()})
             elif self.path == "/api/live/settings":
                 self.send_json(200, {"pairing_code": pairing_code, "voice": voice.enabled,
                                      "read_languages": speech.languages(), "dictation_languages": voice.languages,
@@ -173,25 +173,33 @@ def dashboard(report, port, voice_model=None):
                     body = json.loads(self.read_body(16384))
                     if not isinstance(body, dict) or set(body) - {"website", "privacy_url", "terms_url", "browser_evidence"}:
                         raise ValueError("Enter a website to check.")
-                    website = public_url(body.get("website"), homepage=True)
-                    host = urlsplit(website).hostname
                     evidence = body.get("browser_evidence")
-                    if evidence is None:
-                        alias = host[4:] if host.startswith("www.") else f"www.{host}"
-                        observation = activity.site_observation(host) or activity.site_observation(alias)
-                        links = activity.links(host) or activity.links(alias)
-                    else:
-                        if (not isinstance(evidence, dict) or set(evidence) != {"site", "links", "permissions", "observation"}
-                                or hostname(evidence["site"]) != host):
-                            raise ValueError("Browser evidence must be from the selected website.")
-                        links = safe_links(host, evidence["links"])
-                        observation = validate_observation(evidence["observation"])
-                        observation["permissions"] = validate_permissions(evidence["permissions"])
+                    try:
+                        website = public_url(body.get("website"), homepage=True)
+                        host = urlsplit(website).hostname
+                    except ValueError:
+                        host = browser_hostname(body.get("website"))
+                        if evidence is None and activity.site_capture(host) is None:
+                            raise ValueError("Enter a public HTTPS website or capture an open intranet tab first.") from None
+                        website = None
+                    if evidence is not None and (not isinstance(evidence, dict)
+                            or set(evidence) != {"site", "links", "permissions", "observation"}
+                            or browser_hostname(evidence["site"]) != host or evidence["observation"] is None
+                            or evidence["links"] is None or evidence["permissions"] is None):
+                        raise ValueError("Browser evidence must be from the selected website.")
                     if not site_checks.acquire(blocking=False):
                         self.send_json(409, {"error": "Website checks are busy. Try again when one finishes."})
                         return
                     try:
-                        result = website_check(website, observation, links, body.get("privacy_url"), body.get("terms_url"))
+                        alias = host[4:] if host.startswith("www.") else f"www.{host}"
+                        capture = (activity.add(**evidence, record_visit=False) if evidence is not None
+                                   else activity.site_capture(host) or activity.site_capture(alias))
+                        observation = capture["observation"] if capture else None
+                        links = capture["links"] if capture else activity.links(host) or activity.links(alias)
+                        result = (website_check(website, observation, links, body.get("privacy_url"), body.get("terms_url"))
+                                  if website else browser_only_website(host, observation))
+                        result["capture_revision"] = capture["revision"] if capture else None
+                        result["review"] = review_website(result)
                     finally:
                         site_checks.release()
                     self.send_json(200, result)

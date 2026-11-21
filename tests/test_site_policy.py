@@ -47,7 +47,10 @@ class WebsitePolicyTest(unittest.TestCase):
                 httpd.serve_forever(poll_interval=0.01)
 
             with patch.object(server, "run", side_effect=serve), patch.object(server, "website_check") as check:
-                check.return_value = {"site": host}
+                check.side_effect = lambda _url, observed, *_: {
+                    "site": host, "observation": observed, "risks": [],
+                    "comparisons": comparisons(host, observed, []),
+                }
                 thread = threading.Thread(target=server.dashboard, args=({}, 0), daemon=True)
                 thread.start()
                 base = f"http://127.0.0.1:{httpd.server_port}"
@@ -61,19 +64,34 @@ class WebsitePolicyTest(unittest.TestCase):
                 try:
                     evidence = {"site": host, "links": [PRIVACY], "permissions": {"camera": "denied"},
                                 "observation": snapshot()}
-                    self.assertEqual(send({"website": host, "browser_evidence": evidence}), {"site": host})
+                    first = send({"website": host, "browser_evidence": evidence})
+                    self.assertEqual(first["site"], host)
+                    self.assertEqual(first["review"]["score"], 20)
                     _, observed, links, _, _ = check.call_args.args
                     self.assertEqual(observed["forms"], ["email"])
                     self.assertEqual(observed["permissions"], {"camera": "denied"})
                     self.assertEqual(links, [PRIVACY])
                     with urlopen(base + "/api/live", timeout=3) as response:
-                        self.assertEqual(json.load(response), {"sites": []})
+                        self.assertEqual(json.load(response), {"sites": [], "captures": {host: first["capture_revision"]}})
+                    self.assertEqual(send({"website": host})["capture_revision"], first["capture_revision"])
+                    evidence["observation"] = {**snapshot(), "forms": ["payment"]}
+                    evidence["permissions"] = {"camera": "granted"}
+                    newer = send({"website": host, "browser_evidence": evidence})
+                    self.assertGreater(newer["capture_revision"], first["capture_revision"])
+                    self.assertEqual(newer["review"]["score"], 70)
+                    self.assertNotIn("email addresses", newer["review"]["claims"][-1]["claim"].lower())
+
+                    internal = "portal.internal"
+                    private = send({"website": internal, "browser_evidence": {**evidence, "site": internal, "links": []}})
+                    self.assertEqual(private["site"], internal)
+                    self.assertEqual(private["review"]["score"], 70)
+                    self.assertTrue(all(doc["status"] == "Unavailable" for doc in private["documents"]))
                     evidence["site"] = "other.example.com"
                     with self.assertRaises(HTTPError) as error:
                         send({"website": host, "browser_evidence": evidence})
                     error.exception.close()
                     self.assertEqual(error.exception.code, 400)
-                    check.assert_called_once()
+                    self.assertEqual(check.call_count, 3)
                 finally:
                     httpd.shutdown()
                     thread.join(timeout=3)

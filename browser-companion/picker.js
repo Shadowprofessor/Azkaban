@@ -2,6 +2,7 @@ const params = new URLSearchParams(location.search);
 const dashboardTab = Number(params.get("tab"));
 const dashboardDocument = params.get("document");
 const auditRequest = params.get("request");
+const targetSite = params.get("target")?.replace(/^www\./, "");
 const listButton = document.getElementById("list-tabs");
 const cancelButton = document.getElementById("cancel-picker");
 const pickerStatus = document.getElementById("picker-status");
@@ -14,18 +15,19 @@ function notifyDashboard(result) {
     { documentId: dashboardDocument });
 }
 
-function publicWebTab(address) {
+function webTab(address) {
   if (!URL.canParse(address)) return null;
   const url = new URL(address);
-  return ["http:", "https:"].includes(url.protocol) && /\.[a-z][a-z0-9-]*$/i.test(url.hostname) &&
-    !/\.(localhost|local|internal|home\.arpa|test|invalid)$/i.test(url.hostname) ? url : null;
+  return ["http:", "https:"].includes(url.protocol) && /^[a-z0-9.-]{1,253}$/i.test(url.hostname) &&
+    !/^\d+(\.\d+)+$/.test(url.hostname) ? url : null;
 }
 
 function displayTabs(tabs) {
   tabList.replaceChildren();
   for (const tab of tabs) {
     if (tab.id === dashboardTab || tab.url?.startsWith(chrome.runtime.getURL(""))) continue;
-    const url = publicWebTab(tab.url);
+    const url = webTab(tab.url);
+    if (targetSite && url?.hostname.replace(/^www\./, "") !== targetSite) continue;
     const item = document.createElement("li");
     const button = document.createElement("button");
     const title = document.createElement("strong");
@@ -38,8 +40,9 @@ function displayTabs(tabs) {
     item.append(button);
     tabList.append(item);
   }
-  pickerStatus.textContent = tabList.querySelector("button:enabled") ?
-    "Select a tab to start the audit." : "Open a public website in this browser, then choose Refresh tabs.";
+  const absent = targetSite ? `Open ${targetSite} in this browser, then choose Refresh tabs.` :
+    "Open an HTTP or HTTPS website in this browser, then choose Refresh tabs.";
+  pickerStatus.textContent = tabList.querySelector("button:enabled") ? "Select a tab to start the audit." : absent;
 }
 
 async function loadTabList() {

@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from time import monotonic
 from urllib.parse import urljoin, urlsplit
 
+from .analyst import SCORE_BASE
 from .public_pages import HOSTNAME, POLICY_PATH, PageUnavailable, PolicyPage, doc_kind, download_page, public_url
 
 
@@ -213,14 +214,74 @@ def url_risks(site, observation):
         other = not same_host(site, item["host"])
         label = DATA_TYPES[category][0].lower()
         if category in {"credentials", "payment"}:
-            risks.append({"title": "Sensitive field name in a URL",
+            risks.append({"title": "Sensitive field name in a URL", "level": "High",
                           "detail": f"A resource URL for {item['host']} had a nonempty parameter for {label}.",
                           "action": "Verify the request with the site owner before entering sensitive information. URL parameters can appear in logs."})
         elif other and category in {"email", "phone", "address", "location"}:
-            risks.append({"title": "Personal-data field name in an other-host URL",
+            risks.append({"title": "Personal-data field name in an other-host URL", "level": "Medium",
                           "detail": f"A resource URL for {item['host']} had a nonempty parameter for {label}.",
                           "action": "Check why the other hostname receives this field and review the site's sharing disclosure."})
     return risks
+
+
+def review_website(result):
+    observation = result.get("observation")
+    if observation is None:
+        return {"answer": "Only the public documents were checked. Capture an open tab to score observed evidence.",
+                "score": None, "claims": [], "limitations": []}
+
+    source = f"{result['site']} browser snapshot"
+    findings = []
+
+    def add(title, fact, reason, step, level, *, confidence="High", statements=()):
+        findings.append({
+            "claim": fact, "risk": {"level": level, "why": reason}, "score": SCORE_BASE[level],
+            "confidence": {"level": confidence, "basis": ("Observed directly in the browser snapshot."
+                           if confidence == "High" else "The policy language needs verification in context.")},
+            "evidence": [{"source": source, "fact": fact}] + [
+                {"source": row["document"], "fact": row["quote"]} for row in statements
+            ],
+            "fix": {"title": title, "steps": [step], "url": statements[0]["source"] if statements else None},
+        })
+
+    for item in result["risks"]:
+        add(item["title"], item["detail"], "URL parameters can be retained in browser history and logs.",
+            item["action"], item["level"])
+    for name, state in sorted(observation["permissions"].items()):
+        if state == "granted":
+            add(f"Review {name} access", f"The browser reports {name} permission as granted.",
+                "A permission grant allows access subject to browser controls. This snapshot cannot establish use.",
+                f"Open this site's browser permissions and block or reset {name} access if it is unnecessary.",
+                "Medium" if name == "notifications" else "High")
+    for row in result["comparisons"]:
+        if row["status"] in {"Possible mismatch", "Policy scope needs review"}:
+            add(f"Check the disclosure for {row['data'].lower()}", row["evidence"], row["note"],
+                "Read the cited disclosure in context and ask the site owner to clarify the observed behavior.",
+                "Medium", confidence="Medium", statements=row["statements"])
+        elif row["evidence"].startswith("The page"):
+            add(f"Review {row['data'].lower()}", row["evidence"], row["note"],
+                "Share only fields needed for this task and review the site's privacy or storage controls.",
+                "Low", statements=row["statements"])
+    findings.sort(key=lambda finding: finding["score"], reverse=True)
+    if findings:
+        answer = f"{len(findings)} findings from the latest capture of {result['site']}."
+    else:
+        answer = f"The latest capture of {result['site']} had no findings that GhostPrint can score."
+    return {
+        "answer": answer, "claims": findings, "score": findings[0]["score"] if findings else None,
+        "risk": findings[0]["risk"] if findings else None,
+        "limitations": ["The browser snapshot covers visible field categories, selected URL metadata, permissions, "
+                        "and storage counts. Server storage and request bodies are outside the capture."],
+    }
+
+
+def browser_only_website(site, observation):
+    return {
+        "site": site, "observation": observation, "statements": [], "retention": [],
+        "documents": [{"kind": kind, "status": "Unavailable", "detail": "Public lookup is unavailable for this hostname."}
+                      for kind in ("Privacy policy", "Terms")],
+        "comparisons": comparisons(site, observation, []), "risks": url_risks(site, observation),
+    }
 
 
 def website_check(website, observation=None, links=(), privacy_url=None, terms_url=None):

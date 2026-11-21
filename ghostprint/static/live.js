@@ -47,12 +47,13 @@ function localNode(tag, text, target) {
 async function refreshSites() {
   const target = ui("recent-sites");
   try {
-    const { sites } = await localRequest("/api/live");
+    const { sites, captures } = await localRequest("/api/live");
+    document.dispatchEvent(new CustomEvent("ghostprint:browser-captures", { detail: captures || {} }));
+    ui("clear-activity").disabled = !sites.length && !Object.keys(captures || {}).length;
     const key = JSON.stringify(sites);
     if (key === activityKey) return;
     activityKey = key;
     target.replaceChildren();
-    ui("clear-activity").disabled = !sites.length;
     if (!sites.length) localNode("p", "Waiting for website activity.", target);
     for (const item of sites) {
       const button = localNode("button", `${item.site} · ${item.visits}`, target);
@@ -73,6 +74,7 @@ async function refreshSites() {
 ui("clear-activity").addEventListener("click", async () => {
   try {
     await submitJson("/api/live/clear", {});
+    document.dispatchEvent(new Event("ghostprint:browser-captures-cleared"));
     askRequest++;
     sendButton.disabled = false;
     ui("ask-answer").hidden = true;

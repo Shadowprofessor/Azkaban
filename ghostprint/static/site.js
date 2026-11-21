@@ -1,11 +1,28 @@
 const websiteForm = byId("website-form");
 const websiteStatus = byId("website-status");
 const websiteResults = byId("website-results");
+const websiteReview = byId("website-review");
 const checkWebsite = byId("check-website");
 const pickerControls = [byId("ghostprint-tab-picker"), byId("check-without-account")];
 const pickerMessage = byId("tab-picker-status");
 let pickerRequest;
 let pickerTimer;
+let pickerTarget;
+let lastCaptureRevision = 0;
+let websiteCheckEpoch = 0;
+
+function showWebsiteReview(result) {
+  if (!result.review) return;
+  node("h3", `PrivacyGPT review · ${result.site}`, websiteReview);
+  if (result.observation) {
+    const source = node("p", "Latest browser capture · ", websiteReview);
+    node("time", new Date(result.observation.seen).toLocaleString(), source).dateTime = result.observation.seen;
+  }
+  const { review } = result;
+  node("p", review.score == null ? "Exposure score · Insufficient evidence" :
+    `Exposure score · ${review.score}/100 · ${review.risk.level} risk`, websiteReview);
+  showReview(review, websiteReview, "the browser snapshot", false);
+}
 
 const browserDataLabels = {
   email: "Email addresses", phone: "Phone numbers", name: "Names", address: "Postal addresses",
@@ -52,7 +69,7 @@ function showWebsite(result) {
   }
   node("h3", "Policy comparison", websiteResults);
   if (!result.observation) {
-    node("p", "No browser snapshot is available for this hostname. The results below describe the public documents.", websiteResults);
+    node("p", "Public documents checked. To see what the browser observed, open this website in Chrome or Edge and capture its tab.", websiteResults);
   } else if (!result.comparisons.length) {
     node("p", "The snapshot had no comparable fields or storage observations.", websiteResults);
   } else {
@@ -65,6 +82,9 @@ function showWebsite(result) {
       for (const statement of comparison.statements) showQuote(statement, card);
     }
   }
+  const captureButton = node("button", result.observation ? "Capture this site again" : "Capture this website’s tab", websiteResults);
+  captureButton.type = "button";
+  captureButton.addEventListener("click", () => openTabPicker(result.site));
   node("p", "These comparisons cover the available text and this snapshot. A mismatch needs investigation and does not prove a leak. A match does not establish compliance, consent, or server retention.", websiteResults);
 
   node("h3", "What the website says about your data", websiteResults);
@@ -121,19 +141,22 @@ function pickerUnavailable() {
 function finishPicker() {
   clearTimeout(pickerTimer);
   pickerRequest = undefined;
+  pickerTarget = undefined;
   pickerControls.forEach((button) => { button.disabled = false; });
 }
 
-function openTabPicker() {
+function openTabPicker(target) {
+  if (checkWebsite.disabled || pickerRequest) return;
   byId("website-check").scrollIntoView();
   pickerControls.forEach((button) => { button.disabled = true; });
   pickerMessage.textContent = "Opening the browser tab picker…";
   pickerRequest = crypto.randomUUID();
+  pickerTarget = target;
   pickerTimer = setTimeout(pickerUnavailable, 2500);
-  window.postMessage({ type: "ghostprint-open-picker", request: pickerRequest }, location.origin);
+  window.postMessage({ type: "ghostprint-open-picker", request: pickerRequest, target }, location.origin);
 }
 
-for (const button of pickerControls) button.addEventListener("click", openTabPicker);
+for (const button of pickerControls) button.addEventListener("click", () => openTabPicker());
 window.addEventListener("message", (event) => {
   const data = event.data;
   if (event.source !== window || event.origin !== location.origin || !pickerRequest || data?.request !== pickerRequest) return;
@@ -147,17 +170,20 @@ window.addEventListener("message", (event) => {
     }, 180000);
   }
   if (data.type === "ghostprint-picker-result") {
+    const target = pickerTarget;
     finishPicker();
     pickerMessage.textContent = data.canceled ? "Tab selection canceled." : "";
     if (data.snapshot?.site) {
       byId("policy-website").value = data.snapshot.site;
-      runSiteCheck({ website: data.snapshot.site, browser_evidence: data.snapshot });
+      const links = target ? specificPolicyLinks() : {};
+      runSiteCheck({ website: data.snapshot.site, browser_evidence: data.snapshot, ...links });
     }
   }
 });
 
 async function runSiteCheck(data) {
   if (checkWebsite.disabled) return;
+  const epoch = ++websiteCheckEpoch;
   if (pickerRequest) {
     finishPicker();
     pickerMessage.textContent = "";
@@ -165,6 +191,7 @@ async function runSiteCheck(data) {
   pickerControls.forEach((button) => { button.disabled = true; });
   checkWebsite.disabled = true;
   websiteResults.replaceChildren();
+  websiteReview.replaceChildren();
   websiteStatus.textContent = "Reading public policies and checking available evidence…";
   try {
     const response = await fetch("/api/site/check", {
@@ -174,21 +201,50 @@ async function runSiteCheck(data) {
     });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || "Could not check the site.");
+    if (epoch !== websiteCheckEpoch) return;
+    if (result.capture_revision) lastCaptureRevision = Math.max(lastCaptureRevision, result.capture_revision);
     websiteStatus.textContent = `Check complete for ${result.site}`;
+    showWebsiteReview(result);
     showWebsite(result);
   } catch (error) {
-    websiteStatus.textContent = error instanceof TypeError ? "Could not reach the local GhostPrint dashboard." : error.message;
+    if (epoch === websiteCheckEpoch) {
+      websiteStatus.textContent = error instanceof TypeError ? "Could not reach the local GhostPrint dashboard." : error.message;
+    }
   } finally {
     checkWebsite.disabled = false;
     pickerControls.forEach((button) => { button.disabled = false; });
   }
 }
 
+function specificPolicyLinks() {
+  return {
+    privacy_url: byId("policy-privacy").value.trim() || null,
+    terms_url: byId("policy-terms").value.trim() || null
+  };
+}
+
 websiteForm.addEventListener("submit", (event) => {
   event.preventDefault();
   runSiteCheck({
     website: byId("policy-website").value.trim(),
-    privacy_url: byId("policy-privacy").value.trim() || null,
-    terms_url: byId("policy-terms").value.trim() || null
+    ...specificPolicyLinks()
   });
+});
+
+document.addEventListener("ghostprint:browser-captures", (event) => {
+  if (checkWebsite.disabled || pickerRequest) return;
+  const latest = Object.entries(event.detail).reduce((best, entry) => entry[1] > best[1] ? entry : best, ["", lastCaptureRevision]);
+  if (!latest[0]) return;
+  lastCaptureRevision = latest[1];
+  byId("policy-website").value = latest[0];
+  runSiteCheck({ website: latest[0] });
+});
+
+document.addEventListener("ghostprint:browser-captures-cleared", () => {
+  ++websiteCheckEpoch;
+  finishPicker();
+  websiteReview.replaceChildren();
+  websiteResults.replaceChildren();
+  pickerMessage.textContent = "";
+  websiteStatus.textContent = "Browser captures and the website review were cleared.";
 });
