@@ -15,7 +15,8 @@ async function activeTab() {
   return tab;
 }
 
-function render(site: string, t: TabStats | null, a: SiteAudit | null, s: Settings) {
+type Unknown = { key: string; data: { domain: string; category: string; confidence: number } };
+function render(site: string, t: TabStats | null, a: SiteAudit | null, s: Settings, unknown: Unknown[] = []) {
   const paused = s.allowlist.includes(site);
   // company -> tracker domains this page contacted (for one-click blocking)
   const byCompany = new Map<string, string[]>();
@@ -50,6 +51,7 @@ function render(site: string, t: TabStats | null, a: SiteAudit | null, s: Settin
     </section>
     ${t?.harvest?.length ? `<section class="card" style="border-color:var(--danger)" data-testid="harvest"><strong style="color:var(--danger)">Form data sent before you pressed submit</strong><ul>${t.harvest.map((h) => `<li class="muted">your <b style="color:var(--text)">${esc(h.field)}</b> → <span class="mono">${esc(h.host)}</span> (${esc(h.via)})</li>`).join("")}</ul></section>` : ""}
     ${t?.fpFlagged ? `<section class="card" style="border-color:var(--danger)" data-testid="fp-flag"><strong style="color:var(--danger)">Fingerprinting detected</strong><div class="muted">${t.fingerprint}/6 surfaces probed in 2s (canvas, WebGL, audio, fonts, device, screen)${t.fpFrames?.length ? ` by ${esc(t.fpFrames.join(", "))}` : ""}.</div></section>` : t?.fingerprint ? `<div class="muted">Fingerprint surfaces touched: ${t.fingerprint}/6</div>` : ""}
+    ${unknown.length ? `<section class="card" style="border-color:var(--warning)" data-testid="unknown"><strong style="color:var(--warning)">Likely trackers on no blocklist</strong><ul>${unknown.map((u) => `<li class="row between"><span class="mono">${esc(u.data.domain)}</span><span class="muted">${esc(u.data.category)} · ${u.data.confidence.toFixed(2)}</span></li>`).join("")}</ul><div class="muted" style="font-size:11px">Flagged by an on-device model from behaviour + structure.</div></section>` : ""}
     ${a ? `<section class="card" aria-label="Cookies and storage" data-testid="audit">
       <div class="row between"><strong>Cookies &amp; storage</strong><span class="muted mono">${a.cookies.total} cookies</span></div>
       <div class="muted">${a.cookies.thirdParty} third-party · ${a.cookies.longLived} live &gt;1 year · ${a.cookies.tracking} tracking names${a.cookies.insecure ? ` · ${a.cookies.insecure} insecure` : ""}</div>
@@ -67,7 +69,11 @@ async function refresh() {
   const site = registrable(hostOf(tab?.url));
   const id = tab?.id;
   const audit = id !== undefined ? ((await browser.storage.session.get(`audit:${id}`))[`audit:${id}`] as SiteAudit | undefined) : undefined;
-  render(site, id !== undefined ? await getTab(id) : null, audit ?? null, await getSettings());
+  const stats = id !== undefined ? await getTab(id) : null;
+  const allUnknown = ((await browser.storage.session.get("unknown"))["unknown"] as Unknown[] | undefined) ?? [];
+  // Flagged anywhere, and contacted by the page currently in this tab.
+  const mine = allUnknown.filter((u) => stats?.domains?.includes(u.data.domain) || stats?.unknown?.includes(u.data.domain));
+  render(site, stats, audit ?? null, await getSettings(), mine);
   currentSite = site;
 }
 

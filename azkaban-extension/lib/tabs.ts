@@ -12,7 +12,8 @@ export interface TabStats {
   fpFlagged?: boolean; // 5+ surfaces within 2s
   fpFrames?: string[];
   hashed?: number; // outgoing hashes of the user's own identifiers
-  domains?: string[]; // third-party registrable domains contacted (for the cookie audit)
+  domains?: string[];
+  unknown?: string[]; // unlisted domains the classifier flagged on this page // third-party registrable domains contacted (for the cookie audit)
   harvest?: { host: string; field: string; via: string; ts: number }[]; // typed before submit, sent anyway
   score?: number;
   grade?: string;

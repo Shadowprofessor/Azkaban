@@ -7,11 +7,13 @@ import { addCookies, auditCookies, combine, idCore, idHash, type StorageReport }
 import { lookup } from "../lib/trackers";
 import { bumpTab, getTab, resetTab } from "../lib/tabs";
 import { syncRules } from "../lib/dnr";
+import { observe as observeUnknown } from "../lib/unknown";
+import { uidInQuery, webRequestType } from "../lib/trackerFeatures";
 import { setSettings } from "../lib/store";
 
 // Per-request scratch (requestId -> partial). Requests finish within seconds while the SW is
 // awake handling their events; nothing here needs to survive a SW restart.
-const pending = new Map<string, { ts: number; reqBytes: number }>();
+const pending = new Map<string, { ts: number; reqBytes: number; cookie?: boolean; referer?: string }>();
 
 function bodySize(details: { requestBody?: { raw?: { bytes?: ArrayBuffer }[]; formData?: Record<string, unknown[]> } | null }) {
   const rb = details.requestBody;
@@ -125,7 +127,22 @@ export default defineBackground({
       ["requestBody"],
     );
 
-    const finish = (d: { requestId: string; url: string; method: string; initiator?: string; ip?: string; tabId: number; responseHeaders?: { name: string; value?: string }[]; error?: string }) => {
+    // Cookie / Referer presence for the classifier's behavioural features (presence only).
+    browser.webRequest.onSendHeaders.addListener(
+      (d) => {
+        const p = pending.get(d.requestId);
+        if (!p) return;
+        for (const h of d.requestHeaders ?? []) {
+          const n = h.name.toLowerCase();
+          if (n === "cookie") p.cookie = !!h.value;
+          else if (n === "referer") p.referer = h.value ?? "";
+        }
+      },
+      { urls: ["<all_urls>"] },
+      ["requestHeaders", "extraHeaders"],
+    );
+
+    const finish = (d: { requestId: string; url: string; method: string; initiator?: string; ip?: string; tabId: number; type?: string; responseHeaders?: { name: string; value?: string }[]; error?: string }) => {
       const p = pending.get(d.requestId);
       pending.delete(d.requestId);
       if (!p || !isWebUrl(d.url)) return;
@@ -154,6 +171,19 @@ export default defineBackground({
         initiator: site,
       };
       appendFlow(flow);
+      // Unlisted third party: feed the in-browser classifier (same model as the agent).
+      if (flow.thirdParty && !tracker && d.tabId >= 0 && /[a-z]/i.test(url.hostname)) {
+        const ref = p.referer ?? "";
+        void browser.storage.session.get(`nav:${d.tabId}`).then((r) =>
+          observeUnknown({
+            domain: registrable(url.hostname), navKey: `${d.tabId}:${r[`nav:${d.tabId}`] ?? 0}`,
+            type: webRequestType(d.type ?? "other"), bytes: flow.bytes, cookies: !!p.cookie, uidQs: uidInQuery(url),
+            https: url.protocol === "https:", refererLeaked: !!ref && (ref.includes("?") || ref.replace(/\/+$/, "").split("/").length > 3),
+          }).then((msg) => {
+            if (msg) void bumpTab(d.tabId, site, (t) => (t.unknown = [...(t.unknown ?? []), msg.data.domain].slice(-20)));
+          }),
+        ).catch(() => undefined);
+      }
       if (flow.thirdParty && d.tabId >= 0 && url.search) void recordSentIds(d.tabId, url);
       if (d.tabId >= 0) {
         void bumpTab(d.tabId, site, (t) => {
@@ -173,7 +203,10 @@ export default defineBackground({
 
     // New top-level navigation: start the tab's counters fresh.
     browser.tabs.onUpdated.addListener((tabId, info) => {
-      if (info.url) void resetTab(tabId);
+      if (info.url) {
+        void resetTab(tabId);
+        void browser.storage.session.set({ [`nav:${tabId}`]: Date.now() }); // new page for the classifier
+      }
     });
     browser.tabs.onRemoved.addListener((tabId) => void resetTab(tabId));
     browser.tabs.onUpdated.addListener((tabId, info, tab) => {

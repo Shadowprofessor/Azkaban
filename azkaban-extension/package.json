@@ -14,5 +14,8 @@
     "@playwright/test": "^1.65.1",
     "typescript": "^5.9.3",
     "wxt": "^0.21.5"
+  },
+  "dependencies": {
+    "onnxruntime-web": "^1.31.1"
   }
 }
