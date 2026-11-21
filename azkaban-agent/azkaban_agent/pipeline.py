@@ -8,6 +8,7 @@ from .config import Config
 from .decode import expand
 from .fields import record_fields
 from .geo import Geo
+from .honeytoken import Canary, load as load_honeytokens
 from .identity import Correlator, IdentityTable
 from .schema import Flow
 from .score import Fact
@@ -27,6 +28,7 @@ class Enriched:
     adid_reuse: int = 0          # apps that sent the same ad ID to this flow's company
     tsi: float = 0.0             # seconds since last user interaction
     features: list = field(default_factory=list)
+    honey: list = field(default_factory=list)    # honeytoken hits
 
 
 def _family(via: str) -> str:
@@ -55,6 +57,7 @@ class Pipeline:
         self.identity.add_many(cfg.known_emails, cfg.known_phones, cfg.known_adids)
         self.correlator = Correlator()
         self.severity = SeverityModel()
+        self.canary = Canary(load_honeytokens())
 
     def scan_payload(self, raw: dict) -> tuple[list[pii.Finding], object]:
         pairs = record_fields(raw)
@@ -71,6 +74,7 @@ class Pipeline:
                     f.redacted = f"{f.redacted} [{via}]"
                     f.confidence = min(f.confidence, 0.9)
                 found.append(f)
+        self._last_layers = layers
         return merge(found), tcf.find(pairs + [(k, v) for k, v, via in layers if via])
 
     def process(self, raw: dict) -> Enriched:
@@ -87,6 +91,7 @@ class Pipeline:
         e = Enriched(flow=flow, raw=raw, tsi=float(raw.get("tsi", 0.0) or 0.0))
         if flow.decrypted:
             e.findings, flow.tcf = self.scan_payload(raw)
+            e.honey = self.canary.scan(self._last_layers)
 
         for f in e.findings:
             fam = _family(f.via)
@@ -100,6 +105,8 @@ class Pipeline:
         flow.pii = [f.hit() for f in e.findings]
         e.features = self.severity.features(e, self.cfg.home_country)
         flow.severity = self.severity.score(e.features)
+        if e.honey:
+            flow.severity = max(flow.severity, 95)   # proven exfiltration of a planted value
         return e
 
     def fact(self, e: Enriched) -> Fact:

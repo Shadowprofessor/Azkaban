@@ -29,6 +29,8 @@ PHONE = IDENTITY["phones"][0]
 ADID = IDENTITY["adids"][0]
 IMEI = "490154203237518"
 LAT, LNG = "12.971599", "77.594566"
+# Planted canary: a fake contact card "Dobby" whose phone field holds this token.
+HONEYTOKEN = {"token": "azk7f3a91c2d4e8b605", "label": "Dobby contact card"}
 # Consent for storage/ads/measurement purposes; vendor 755 = Google Advertising Products.
 TCF = tcf_encode([1, 2, 3, 4, 7, 9, 10], [755, 793])
 
@@ -69,7 +71,8 @@ def generate(seed: int = 7) -> list[dict]:
                                      "loc": {"lat": LAT, "lng": LNG},
                                      "contacts": [{"name": "Ron", "phone": "+15555550101"},
                                                   {"name": "Ginny", "phone": "+15555550102"},
-                                                  {"name": "Luna", "phone": "+15555550103"}]})))
+                                                  {"name": "Luna", "phone": "+15555550103"},
+                                                  {"name": "Dobby", "note": HONEYTOKEN["token"]}]})))
     out.append(_rec(at(700), "Flashlight Pro", "app-measurement.com", "142.250.193.142",
                     path="/a", tsi=1.9,
                     body=f"gmp_version=1&app_instance_id={uuid.uuid4().hex}&adid={ADID}&imei={IMEI}"))
@@ -125,7 +128,7 @@ def write(path: str | Path) -> int:
     p.parent.mkdir(parents=True, exist_ok=True)
     with open(p, "w", encoding="utf-8") as f:
         f.write(json.dumps({"azk": 1, "created": recs[0]["ts"], "source": "synthetic",
-                            "identity": IDENTITY}) + "\n")
+                            "identity": IDENTITY, "honeytokens": [HONEYTOKEN]}) + "\n")
         for r in recs:
             f.write(json.dumps(r, separators=(",", ":")) + "\n")
     return len(recs)

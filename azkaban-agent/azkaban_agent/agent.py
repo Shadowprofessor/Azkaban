@@ -9,6 +9,8 @@ from . import __version__
 from .config import Config
 from .pipeline import Pipeline
 from .blocklist import Blocklist, host_blocked
+from .config import REPO_ROOT
+from .evidence import EvidenceChain
 from .idle import IdleDetector
 from .insights import InsightEngine
 from .legal import LegalEngine, build_facts, facts_key
@@ -23,7 +25,7 @@ def log(msg: str) -> None:
 
 
 class Agent:
-    def __init__(self, cfg: Config, mode: str = "live", record: str | None = None):
+    def __init__(self, cfg: Config, mode: str = "live", record: str | None = None, consent: bool = False):
         self.cfg = cfg
         self.mode = mode
         self.loop: asyncio.AbstractEventLoop | None = None
@@ -47,6 +49,7 @@ class Agent:
         self.pending_keys: set[str] = set()
         self.auto_verdict_min = 60
         self.blocklist = Blocklist()
+        self.evidence = EvidenceChain(mode, consent)
         self._blocklist_dirty = False
         self._replay_args: tuple | None = None
         self._replay_task: asyncio.Task | None = None
@@ -93,7 +96,11 @@ class Agent:
         self.blocklist.observe(enriched.flow)
         if self.blocklist.applied:
             self._blocklist_dirty = True
-        self.hub.publish({"type": "flow", "flow": enriched.flow.to_dict()})
+        flow_dict = enriched.flow.to_dict()
+        self.hub.publish({"type": "flow", "flow": flow_dict})
+        self.evidence.add_flow(flow_dict)
+        for hit in enriched.honey:
+            self._honeytoken_alert(enriched, hit)
         self.recent[enriched.flow.id] = enriched
         if len(self.recent) > 2000:
             self.recent.popitem(last=False)
@@ -139,6 +146,7 @@ class Agent:
                 continue
             warned = False
             self.hub.publish({"type": "verdict", "verdict": v.to_dict()})
+            self.evidence.add_verdict(v.to_dict())
 
     async def _health_loop(self) -> None:
         while True:
@@ -147,6 +155,26 @@ class Agent:
                 self.llm_ok = ok
                 self.hub.broadcast_status()
             await asyncio.sleep(15)
+
+    # ------------------------------------------------------------------ honeytoken / evidence
+    def _honeytoken_alert(self, e, hit: dict) -> None:
+        f = e.flow
+        self.evidence.add_event("honeytoken", {"flowId": f.id, "app": f.app, "host": f.host,
+                                               "company": f.company, **hit})
+        log(f"!!! HONEYTOKEN '{hit['label']}' leaked by {f.app} to {f.host} ({hit['field']}, {hit['via']})")
+        self.hub.publish({"type": "insight", "key": f"honeytoken:{hit['label']}:{f.app}:{f.host}",
+                          "kind": "honeytoken", "level": "critical",
+                          "title": f"CANARY TRIPPED: {f.app} sent your planted '{hit['label']}' to {f.host}",
+                          "detail": "This exact value exists only where you planted it. Its appearance in outbound "
+                                    f"traffic proves {f.app} read and transmitted it (field '{hit['field']}', "
+                                    f"encoding {hit['via']}).",
+                          "data": {"flowId": f.id, "app": f.app, "host": f.host, "company": f.company, **hit}})
+
+    async def _export_evidence(self) -> None:
+        res = await asyncio.to_thread(self.evidence.export, REPO_ROOT / "evidence")
+        log(f"evidence pack: {res['path']} (head {res['rootHash'][:16]}…, {res['entries']} entries)")
+        self.hub.publish({"type": "evidence", "path": res["path"], "rootHash": res["rootHash"],
+                          "entries": res["entries"]}, keep=False)
 
     # ------------------------------------------------------------------ blocklist
     def on_blocked(self, host: str) -> None:
@@ -163,6 +191,8 @@ class Agent:
             if self.addon:
                 self.addon.blocked = blocked
             self.exposure.reset()                         # recheck window starts clean
+            self.evidence.add_event("blocklist_applied", {"hosts": sorted(blocked), "baselineLeaks": bl.baseline,
+                                                           "baselineScore": before})
             log(f"Patronus applied: {len(blocked)} hosts blocked; baseline {bl.baseline} leaks, score {before}")
             if self.mode == "replay" and self._replay_args:
                 self._restart_replay()                    # same session again = apples-to-apples
@@ -192,6 +222,9 @@ class Agent:
     # ------------------------------------------------------------------ commands
     async def on_command(self, cmd: dict) -> None:
         t = cmd["type"]
+        if t == "export_evidence":
+            await self._export_evidence()
+            return
         if t == "blocklist":
             self._blocklist_command(str(cmd.get("action", "generate")))
             return
@@ -273,6 +306,8 @@ class Agent:
         self.session_header = read_header(path)
         ident = self.session_header.get("identity") or {}
         self.pipeline.identity.add_many(ident.get("emails", []), ident.get("phones", []), ident.get("adids", []))
+        for t in self.session_header.get("honeytokens", []):
+            self.pipeline.canary.register(t)
         ws = await self._serve_ws()
         try:
             # Give the dashboard a moment to connect so it sees the whole story.
