@@ -8,6 +8,8 @@ import { lookup } from "../lib/trackers";
 import { bumpTab, getTab, resetTab } from "../lib/tabs";
 import { syncRules } from "../lib/dnr";
 import { observe as observeUnknown } from "../lib/unknown";
+import { classify, insight as clfInsight } from "../lib/clf";
+import type { PageObs } from "../lib/trackerFeatures";
 import { uidInQuery, webRequestType } from "../lib/trackerFeatures";
 import { setSettings } from "../lib/store";
 
@@ -221,6 +223,11 @@ export default defineBackground({
         return runAudit(m.tabId!);
       }
       if (fromOwnPage && m.type === "patronus") return patronus(msg as PatronusCmd);
+      // Consistency self-test (own pages only): classify given page observations exactly like live traffic.
+      if (fromOwnPage && m.type === "clf_selftest") {
+        const t = msg as { domain: string; pages: PageObs[] };
+        return classify(t.domain, t.pages).then((hit) => (hit ? clfInsight(hit) : null));
+      }
       const tabId = sender.tab?.id;
       if (tabId === undefined || tabId < 0 || !sender.tab?.url) return undefined;
       const site = registrable(hostOf(sender.tab.url));
