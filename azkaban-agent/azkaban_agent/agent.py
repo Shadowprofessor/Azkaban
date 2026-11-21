@@ -391,8 +391,10 @@ class Agent:
         self.loop = asyncio.get_running_loop()
         ws = await self._serve_ws()
         try:
-            master = await run_proxy(self.addon, self.cfg.proxy_port)
-            log(f"The Trace is listening on 127.0.0.1:{self.cfg.proxy_port} (CA in ~/.mitmproxy)")
+            master = await run_proxy(self.addon, self.cfg.proxy_port,
+                                     upstream=self.cfg.upstream_proxy)
+            log(f"The Trace is listening on 127.0.0.1:{self.cfg.proxy_port} (CA in ~/.mitmproxy)"
+                + (f" -> upstream {self.cfg.upstream_proxy}" if self.cfg.upstream_proxy else ""))
             await master.run()
         finally:
             ws.close()

@@ -50,6 +50,7 @@ class Config:
     nim_model: str = ""
     nim_key: str = ""
     nim_fallback_ollama: bool = True
+    upstream_proxy: str = ""
     geoip_db: str = ""
     home_country: str = "IN"
     known_emails: list[str] = field(default_factory=list)
@@ -72,6 +73,8 @@ class Config:
             nim_model=e("AZK_NIM_MODEL", NEMOTRON_ULTRA),
             nim_key=e("NVIDIA_API_KEY", "").strip(),
             nim_fallback_ollama=e("AZK_NIM_FALLBACK_OLLAMA", "1") != "0",
+            # Chain to an existing HTTP proxy, for machines whose internet goes through one.
+            upstream_proxy=e("AZK_UPSTREAM_PROXY", "").strip(),
             geoip_db=e("AZK_GEOIP_DB", str(DATA_DIR / "GeoLite2-Country.mmdb")),
             home_country=e("AZK_HOME_COUNTRY", "IN").upper(),
             known_emails=_csv("AZK_KNOWN_EMAILS"),

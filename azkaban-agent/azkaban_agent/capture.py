@@ -153,11 +153,46 @@ class CaptureAddon:
         })
 
 
-async def run_proxy(addon: CaptureAddon, port: int, host: str = "127.0.0.1") -> dump.DumpMaster:
-    """Start mitmproxy bound to loopback only. Returns the running master."""
+def _upstream_spec(upstream: str) -> tuple[str, str]:
+    """Split an upstream proxy URL into a mitmproxy mode spec and basic-auth credentials.
+
+    Accepts "host:port", "http://host:port" and "http://user:pass@host:port". Credentials
+    are URL-decoded, since a proxy password with reserved characters arrives percent-encoded
+    in the environment.
+    """
+    from urllib.parse import unquote, urlsplit
+
+    raw = upstream.strip()
+    if "://" not in raw:
+        raw = f"http://{raw}"
+    parts = urlsplit(raw)
+    host = parts.hostname or "127.0.0.1"
+    port = f":{parts.port}" if parts.port else ""
+    auth = ""
+    if parts.username:
+        auth = f"{unquote(parts.username)}:{unquote(parts.password or '')}"
+    return f"{parts.scheme}://{host}{port}", auth
+
+
+async def run_proxy(addon: CaptureAddon, port: int, host: str = "127.0.0.1",
+                    upstream: str = "") -> dump.DumpMaster:
+    """Start mitmproxy bound to loopback only. Returns the running master.
+
+    `upstream` chains to another HTTP proxy (AZK_UPSTREAM_PROXY), for machines whose
+    internet access already goes through one. Without it mitmproxy dials destinations
+    directly, and on such a machine every captured request fails. This forwards the user's
+    own traffic onward; it is not the agent originating a connection, so it is outside
+    net.py's remit the same way ordinary mitmproxy forwarding is.
+    """
     host = require_loopback(host, "proxy")
     opts = options.Options()
     master = dump.DumpMaster(opts, with_termlog=False, with_dumper=False)
     opts.update(listen_host=host, listen_port=port)
+    if upstream:
+        spec, auth = _upstream_spec(upstream)
+        opts.update(mode=[f"upstream:{spec}"])
+        if auth:
+            # mitmproxy refuses credentials inside the mode URL; they go here instead.
+            opts.update(upstream_auth=auth)
     master.addons.add(addon)
     return master
