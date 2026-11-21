@@ -50,6 +50,7 @@ class Agent:
         self.pending_keys: set[str] = set()
         self.auto_verdict_min = 60
         self.blocklist = Blocklist()
+        self.evidence_dir = REPO_ROOT / "evidence"
         self.beacons = BeaconAnomaly()
         self.evidence = EvidenceChain(mode, consent)
         self._blocklist_dirty = False
@@ -176,7 +177,7 @@ class Agent:
                           "data": {"flowId": f.id, "app": f.app, "host": f.host, "company": f.company, **hit}})
 
     async def _export_evidence(self) -> None:
-        res = await asyncio.to_thread(self.evidence.export, REPO_ROOT / "evidence")
+        res = await asyncio.to_thread(self.evidence.export, self.evidence_dir)
         log(f"evidence pack: {res['path']} (head {res['rootHash'][:16]}…, {res['entries']} entries)")
         self.hub.publish({"type": "evidence", "path": res["path"], "rootHash": res["rootHash"],
                           "entries": res["entries"]}, keep=False)
