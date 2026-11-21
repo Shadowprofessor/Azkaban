@@ -125,7 +125,22 @@ class LegalEngine:
         docs = [d for d in (docs or []) if d.get("section") and d.get("text")]
         if not docs:
             raise LawUnavailable("retriever returned no law")
-        return docs
+        return self._rerank(facts, docs)
+
+    def _rerank(self, facts: dict, docs: list[dict]) -> list[dict]:
+        """Let the model order the retrieved sections; it can never add one.
+
+        Retrieval stays authoritative about WHICH sections are in play, so a citation is
+        always traceable to the corpus. On any failure the BM25 order stands.
+        """
+        if self.rag_source != "rag" or not self.nim.configured:
+            return docs
+        try:
+            from rag.query import trigger_sections   # type: ignore
+            from rag.rerank import rerank_law        # type: ignore
+            return rerank_law(facts, docs, self.nim, keep=set(trigger_sections(facts)))
+        except Exception:
+            return docs
 
     # ------------------------------------------------------------- llm
     def _ollama(self, messages: list[dict]) -> str:

@@ -13,6 +13,7 @@ from .config import REPO_ROOT
 from .evidence import EvidenceChain
 from .idle import IdleDetector
 from .insights import InsightEngine
+from . import remediate
 from .legal import LegalEngine, build_facts, facts_key
 from .mlextra import BeaconAnomaly
 from .tracker_clf import TrackerClassifier, insight as tracker_insight
@@ -61,6 +62,11 @@ class Agent:
         if self.addon:
             self.addon.on_blocked = self.on_blocked
 
+    # ------------------------------------------------------------------ insights
+    def publish_insight(self, msg: dict) -> None:
+        """Single path for every insight, so remediation is attached exactly once."""
+        self.hub.publish(remediate.enrich(msg))
+
     # ------------------------------------------------------------------ status
     def status(self) -> dict:
         return {
@@ -71,7 +77,8 @@ class Agent:
             "flows": self.flow_count,
             "engines": {"llm": self.llm_ok, "rag": self.legal.rag_source == "rag",
                         "model": self.pipeline.severity.available, "geo": self.pipeline.geo.available,
-                        "nim": self.legal.nim.configured},
+                        "nim": self.legal.nim.configured,
+                        "remediation": remediate.available()},
             # Additive (v1): which reasoning engine answered last, for the UI badge.
             "llmEngine": self.legal.engine,
             "llmModel": self.legal.nim.model if self.legal.nim.configured else self.cfg.ollama_model,
@@ -124,7 +131,7 @@ class Agent:
             f = enriched.flow
             self.netwatch.learn(f.ip, f.host, f.app)
         for msg in self.insights.on_flow(enriched):
-            self.hub.publish(msg)
+            self.publish_insight(msg)
 
     # ------------------------------------------------------------------ verdicts
     def _enqueue_verdict(self, e, force: bool = False) -> bool:
@@ -176,7 +183,7 @@ class Agent:
         self.evidence.add_event("honeytoken", {"flowId": f.id, "app": f.app, "host": f.host,
                                                "company": f.company, **hit})
         log(f"!!! HONEYTOKEN '{hit['label']}' leaked by {f.app} to {f.host} ({hit['field']}, {hit['via']})")
-        self.hub.publish({"type": "insight", "key": f"honeytoken:{hit['label']}:{f.app}:{f.host}",
+        self.publish_insight({"type": "insight", "key": f"honeytoken:{hit['label']}:{f.app}:{f.host}",
                           "kind": "honeytoken", "level": "critical",
                           "title": f"CANARY TRIPPED: {f.app} sent your planted '{hit['label']}' to {f.host}",
                           "detail": "This exact value exists only where you planted it. Its appearance in outbound "
@@ -278,7 +285,7 @@ class Agent:
                 self.hub.publish(self.blocklist.message(), keep=False)
                 ins = self._recheck_insight()
                 if ins:
-                    self.hub.publish(ins)
+                    self.publish_insight(ins)
 
     async def _insight_loop(self) -> None:
         tick = 0
@@ -292,10 +299,10 @@ class Agent:
                 except Exception:
                     bypass = None
             for msg in self.insights.periodic(bypass):
-                self.hub.publish(msg)
+                self.publish_insight(msg)
             if tick % 5 == 0:
                 for msg in await asyncio.to_thread(self._ml_insights):
-                    self.hub.publish(msg)
+                    self.publish_insight(msg)
 
     def _ml_insights(self) -> list[dict]:
         out = []

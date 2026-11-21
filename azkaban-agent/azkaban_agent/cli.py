@@ -59,6 +59,14 @@ def build_parser() -> argparse.ArgumentParser:
 
     sub.add_parser("fetch-geo", help="Download the offline DB-IP country database")
 
+    rc = sub.add_parser("rag-check", help="Show which law sections and remediation a flow retrieves")
+    rc.add_argument("--tracker", action="store_true", help="Treat the destination as a tracker")
+    rc.add_argument("--cross-border", action="store_true", help="Destination outside the home country")
+    rc.add_argument("--no-consent", action="store_true", help="No consent signal observed")
+    rc.add_argument("--child-app", action="store_true", help="A children's app")
+    rc.add_argument("--pii", default="", help="Comma-separated PII types, e.g. gps,adid")
+    rc.add_argument("--company", default="Google", help="Destination company or host")
+
     nc = sub.add_parser("nim-check", help="Verify the NVIDIA NIM key, model and endpoint end to end")
     nc.add_argument("--prompt", default="Reply with exactly: READY",
                     help="Prompt to send (no user data is involved)")
@@ -147,6 +155,31 @@ def main(argv: list[str] | None = None) -> int:
         from .demo import write
         n = write(args.file)
         print(f"[azkaban] wrote {n} synthetic flows to {args.file}")
+        return 0
+
+    if args.cmd == "rag-check":
+        sys.path.insert(0, str(REPO_ROOT))
+        try:
+            from rag.guides import remediate
+            from rag.query import explain
+        except Exception as ex:
+            print(f"[azkaban] retrieval layer not importable: {ex}", file=sys.stderr)
+            return 1
+        pii = [x.strip() for x in args.pii.split(",") if x.strip()]
+        facts = {"pii_types": pii, "company": args.company, "is_tracker": args.tracker,
+                 "tracker_category": "advertising" if args.tracker else None,
+                 "cross_border": args.cross_border, "consent": not args.no_consent,
+                 "child_app": args.child_app, "app_category": "utility",
+                 "pii_unexpected_for_app_category": [], "hashed_identifier": False,
+                 "same_adid_across_apps": 0, "while_user_idle": False, "decrypted": True}
+        print("[azkaban] law retrieved for this flow:")
+        print(explain(facts, 5))
+        r = remediate(company=args.company, kind="unknown_tracker", pii_types=pii)
+        print(f"\n[azkaban] remediation ({r['source']}): {r['title']}")
+        for i, step in enumerate(r["steps"], 1):
+            print(f"  {i}. {step}")
+        if r["url"]:
+            print(f"  source: {r['url']}")
         return 0
 
     if args.cmd == "nim-check":
