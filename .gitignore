@@ -1,0 +1,13 @@
+.env
+__pycache__/
+*.pyc
+*.egg-info/
+.pytest_cache/
+.venv/
+node_modules/
+# user traffic never goes to git
+*.azk
+!azkaban-agent/demo/*.azk
+evidence/
+*.mmdb
+train/out/
