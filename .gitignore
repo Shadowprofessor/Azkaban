@@ -18,3 +18,7 @@ train/out/
 .playwright-mcp/
 next-env.d.ts
 *.tsbuildinfo
+
+# training caches / datasets (rebuilt by train/build_dataset.py)
+train/cache/
+train/data/
