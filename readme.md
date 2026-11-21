@@ -33,11 +33,17 @@ For a VS Code forwarded agent port, enter the corresponding `wss://...` WebSocke
 
 ## Screens
 
-- **Consent gate:** identifies the device, requires explicit ownership confirmation, and waits until agent connectivity is known.
+- **Landing and setup:** introduces account linking, asks users to confirm they own or may review the device and accounts, then opens the app-linking workspace.
 - **Live Leak Radar:** virtualized flow stream, PII/severity filters, metadata-only vs decrypted labels, score gauge, category bars, and Shadow Map.
 - **Flow drawer:** destination, jurisdiction, timing, size, PII signal confidence, and the streamed legal verdict. The frozen Flow contract contains redacted PII values only, so the UI cannot reveal raw values.
-- **Legal & Remediation:** streamed verdicts with citations, blocklist requests and preview, capture re-run controls, editable complaint draft. Apply copied blocklist rules on the audited device before comparing a new capture, and evidence export on an agent evidence response.
-- **Stored Footprint:** OAuth connector UI, HIBP proxy form, and a local-only Takeout ZIP selection state. OAuth and `/api/hibp` server routes still need their backend work.
+- **Findings & Next Steps:** evidence, source citations, a practical review guide, proportionate options, actions to avoid, a complaint draft, and evidence export.
+- **Link your apps:** provider authorization cards, linked-state tracking, disconnect actions, HIBP proxy form, and a local-only Takeout ZIP selection state. OAuth start/callback/disconnect routes still need provider credentials and backend implementation.
+
+## App authorization integration
+
+The app cards start OAuth through `POST /api/oauth/{provider}/start` for `instagram`, `reddit`, `spotify`, `google`, or `github`. The same-origin endpoint must create and validate OAuth state (and PKCE where supported), keep client secrets server-side, and return `{ "authorizationUrl": "https://..." }`. After the provider callback is verified server-side, redirect to the frontend with `?oauth=connected&provider={provider}`. Disconnect uses `POST /api/oauth/{provider}/disconnect` and must revoke the provider grant when supported. The frontend records only the provider name in session storage; it never stores access tokens. A teammate React integration can instead expose `window.GhostPrintIntegrations.connectApp({ provider })` and `disconnectApp({ provider })`, resolving only after the server confirms the operation.
+
+Provider client IDs, redirect URIs, scopes, callback verification, token storage, disconnect/revocation, and provider review requirements must be configured by the account-connector backend. The UI does not report a connection as successful until the connector completes.
 
 ## Frozen WebSocket messages
 

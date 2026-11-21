@@ -1,6 +1,15 @@
 import { create } from 'zustand';
 import { MAX_FLOWS } from './schema';
 
+function readLinkedApps() {
+  try {
+    const value = JSON.parse(sessionStorage.getItem('ghostprint-linked-apps') || '[]');
+    return Array.isArray(value) ? value.filter((item) => typeof item === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
 export const useGhostStore = create((set) => ({
   consent: sessionStorage.getItem('ghostprint-consent') === 'accepted',
   agent: { connected: false, known: false, capturing: false, device: 'laptop', version: '' },
@@ -12,6 +21,7 @@ export const useGhostStore = create((set) => ({
   baseline: null,
   blocklist: null,
   evidence: null,
+  linkedApps: readLinkedApps(),
   error: '',
   setConsent: (consent) => { if (consent) sessionStorage.setItem('ghostprint-consent', 'accepted'); else sessionStorage.removeItem('ghostprint-consent'); set({ consent }); },
   setAgent: (agent) => set((state) => ({ agent: { ...state.agent, ...agent } })),
@@ -23,6 +33,7 @@ export const useGhostStore = create((set) => ({
   setBaseline: (baseline) => set({ baseline }),
   setBlocklist: (blocklist) => set({ blocklist }),
   setEvidence: (evidence) => set({ evidence }),
+  setLinkedApps: (linkedApps) => { sessionStorage.setItem('ghostprint-linked-apps', JSON.stringify(linkedApps)); set({ linkedApps }); },
   setError: (error) => set({ error }),
   clearError: () => set({ error: '' }),
 }));
