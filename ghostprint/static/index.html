@@ -46,6 +46,11 @@
           <button id="send-prompt" type="submit" aria-controls="ask-answer">Send</button>
         </div>
         <p id="prompt-shortcut" class="shortcut">Enter to send · Shift+Enter for a new line</p>
+        <div class="web-search-option">
+          <label><input id="search-web" type="checkbox" aria-describedby="web-search-note">
+            Search the web if there’s no local answer</label>
+          <p id="web-search-note" class="shortcut">The search provider receives your question or its English voice translation. Use public topics.</p>
+        </div>
         <div class="controls">
           <button id="record-voice" type="button" disabled>Use microphone</button>
           <label>Dictation language <select id="dictation-language" disabled><option value="">Automatic</option></select></label>

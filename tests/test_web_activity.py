@@ -1,9 +1,22 @@
 import unittest
+from unittest.mock import patch
 
 from ghostprint.web_activity import WebActivity, answer, hostname
 
 
 class WebsiteAuditTest(unittest.TestCase):
+    def test_search_runs_only_after_an_opted_in_local_miss(self):
+        fact = "What is differential privacy?"
+        with patch("ghostprint.web_activity.search_public_question", return_value={"status": "empty"}) as lookup:
+            self.assertNotIn("web", answer(fact, "unshared.example", ["https://unshared.example/privacy"]))
+            self.assertNotIn("web", answer("Clear this site's cookies", "unshared.example", [], search_web=True))
+            self.assertNotIn("web", answer("", "unshared.example", [], search_web=True))
+            lookup.assert_not_called()
+            result = answer(fact, "unshared.example", ["https://unshared.example/privacy"], search_web=True)
+            self.assertEqual(result["guides"], [])
+            self.assertEqual(result["web"], {"status": "empty"})
+            lookup.assert_called_once_with(fact)
+
     def test_new_domains_get_general_guides_without_claims(self):
         result = answer("How do I turn off microphone access?", "newsite.example", [])
         self.assertEqual(result["site"], "newsite.example")

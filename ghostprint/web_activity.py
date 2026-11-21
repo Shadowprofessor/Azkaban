@@ -5,6 +5,7 @@ from threading import Lock
 from urllib.parse import urlsplit
 
 from .retrieval import PLATFORMS, retrieve, tokens
+from .web_search import search_public_question
 
 
 WEB_GUIDES = [
@@ -45,6 +46,14 @@ SITE_PLATFORMS = {"google.com": "Google", "youtube.com": "Google",
                   "instagram.com": "Instagram", "spotify.com": "Spotify"}
 BROWSER_ONLY = {"permissions", "permission", "microphone", "camera", "notification", "notifications",
                 "cookie", "cookies", "cache", "clipboard", "browser"}
+WEB_TOPICS = {
+    "web-permissions": {"camera", "microphone", "location", "permission", "permissions",
+                        "clipboard", "notification", "notifications"},
+    "web-cookies": {"cookies", "cookie", "storage", "cache", "tracking", "tracker", "trackers"},
+    "web-account": {"account", "deletion", "export", "profile", "policy"},
+}
+FACT_QUESTION = re.compile(r"^\s*(?:what (?:is|are)\b|define\b|explain\b|who\b|when\b)", re.I)
+ACTION_QUESTION = re.compile(r"\b(?:how to|way to|steps? to|how (?:can|do|should) (?:i|we))\b", re.I)
 PATH = re.compile(r"/(?:[a-z]{2}(?:-[a-z]{2})?/)?(?:legal/|policies/)?"
                   r"(?:privacy(?:[-_]policy|[-_]notice)?|data[-_]deletion|delete[-_]account|"
                   r"cookie[-_]policy|cookies)(?:\.html)?/?$", re.I)
@@ -112,10 +121,13 @@ class WebActivity:
             self._links.clear()
 
 
-def answer(prompt, site, observed_links):
+def answer(prompt, site, observed_links, *, search_web=False):
     query = set(tokens(prompt))
+    if "data" in query and query & {"browsing", "site", "browser"}:
+        query.add("storage")
     web = sorted(
-        ((len(query & set(guide["terms"].split())), guide) for guide in WEB_GUIDES),
+        ((len(query & set(guide["terms"].split())), guide) for guide in WEB_GUIDES
+         if query & WEB_TOPICS[guide["id"]]),
         key=lambda match: -match[0],
     )
     platform = next((name for domain, name in SITE_PLATFORMS.items()
@@ -125,6 +137,11 @@ def answer(prompt, site, observed_links):
         platform = PLATFORMS[next(iter(mentioned_platforms))]
     platform_guides = retrieve(prompt, platform=platform, k=2) if platform and not query & BROWSER_ONLY else []
     guides = (platform_guides + [guide for score, guide in web if score])[:3]
+    if FACT_QUESTION.match(prompt) and not ACTION_QUESTION.search(prompt):
+        guides = []
     if not guides and site and not prompt.strip():
         guides = WEB_GUIDES
-    return {"site": site, "links": observed_links, "guides": guides}
+    result = {"site": site, "links": observed_links, "guides": guides}
+    if search_web and not guides and prompt.strip():
+        result["web"] = search_public_question(prompt)
+    return result

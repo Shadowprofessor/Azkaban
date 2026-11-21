@@ -26,6 +26,10 @@ python -m ghostprint live
 
 Type or dictate a privacy prompt, then click **Send** or press Enter. The **Answer** panel shows the recommended steps and their sources. Press Shift+Enter to add a line to the prompt.
 
+Turn on **Search the web if there’s no local answer** to look up public questions when the local guides have no match. This preference lasts for the browser tab. The search provider receives the question or the English lookup from dictation. The selected website, archive report, recorded browsing activity and microphone audio stay local. GhostPrint skips web lookup for prompts with patterns such as email addresses, credentials or full URLs.
+
+The web fallback searches English Wikipedia by default and displays linked excerpts. To use general web search, set `$env:BRAVE_SEARCH_API_KEY = '<your Brave Search API key>'` before starting GhostPrint. The app uses that key for [Brave Search](https://api-dashboard.search.brave.com/api-reference/web/search/get). Restart the local dashboard after changing the key.
+
 Live recording covers ordinary browser tabs with public-style HTTP(S) hostnames in paired Chrome or Edge sessions. Browser-internal pages, incognito, other desktop apps, full navigation paths, queries, page contents, form input, and credentials are outside that recording scope. The optional link scan reads matching same-origin links when explicitly requested. Activity is kept in the dashboard's memory and expires when it exits. Copy a new code after restarting.
 
 ## Turn on offline voice

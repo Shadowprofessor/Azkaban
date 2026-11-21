@@ -3,6 +3,7 @@ const promptField = ui("ask-prompt");
 const siteField = ui("ask-site");
 const askForm = ui("ask-form");
 const sendButton = ui("send-prompt");
+const webToggle = ui("search-web");
 const recorderButton = ui("record-voice");
 const tts = window.speechSynthesis;
 let transcript;
@@ -12,6 +13,11 @@ let askRequest = 0;
 let playback = 0;
 let readLanguages = [];
 let speechUrl;
+
+webToggle.checked = sessionStorage.getItem("ghostprint-web-fallback") === "enabled";
+webToggle.addEventListener("change", () => {
+  sessionStorage.setItem("ghostprint-web-fallback", webToggle.checked ? "enabled" : "disabled");
+});
 
 async function localRequest(url, options) {
   const response = await fetch(url, options);
@@ -87,6 +93,7 @@ async function runQuestion() {
   const spoken = transcript?.text === promptField.value ? transcript : undefined;
   const prompt = (spoken?.lookup || promptField.value).trim();
   const site = siteField.value.trim();
+  const searchWeb = webToggle.checked;
   panel.hidden = false;
   target.replaceChildren();
   if (!prompt && !site) {
@@ -96,9 +103,9 @@ async function runQuestion() {
     return;
   }
   sendButton.disabled = true;
-  status.textContent = "Searching local guides…";
+  status.textContent = searchWeb ? "Checking local guides first…" : "Searching local guides…";
   try {
-    const answer = await submitJson("/api/live/ask", { site, prompt });
+    const answer = await submitJson("/api/live/ask", { site, prompt, search_web: searchWeb });
     if (id !== askRequest) return;
     status.textContent = answer.site ? `Guidance for ${answer.site}` : "Based on local privacy guides.";
     for (const guide of answer.guides) {
@@ -108,14 +115,33 @@ async function runQuestion() {
       for (const step of guide.steps) localNode("li", step, list);
       linkTo("Open source", guide.url, article);
     }
+    if (!answer.guides.length) {
+      const web = answer.web;
+      if (web?.status === "ok") {
+        status.textContent = `Found online · ${web.provider}`;
+        for (const source of web.sources) {
+          const article = localNode("article", "", target);
+          localNode("h4", source.title, article);
+          localNode("p", source.snippet, article);
+          linkTo("Open web source", source.url, article);
+        }
+      } else if (web?.status === "blocked") {
+        status.textContent = "This question may contain private details. Remove them and send it again to search online.";
+      } else if (web?.status === "too_long") {
+        status.textContent = "Shorten your question to 500 characters and 70 words or fewer to search online.";
+      } else if (web?.status === "unavailable") {
+        status.textContent = "The web search provider did not respond. Try again in a moment.";
+      } else if (web) {
+        status.textContent = "No matching web sources. Try a shorter or more specific question.";
+      } else {
+        status.textContent = "No matching local answer. Turn on web search to look for public sources.";
+      }
+    }
     if (answer.links.length) {
       const article = localNode("article", "", target);
       localNode("h4", "Privacy links found on the page", article);
       const list = localNode("ul", "", article);
       for (const url of answer.links) linkTo(url, url, localNode("li", "", list));
-    }
-    if (!answer.guides.length) {
-      status.textContent = "No matching answer. Try asking about permissions, cookies, or account deletion.";
     }
     ui("answer-heading").scrollIntoView({ block: "nearest" });
   } catch (error) {

@@ -35,6 +35,8 @@ textarea { display: block; width: 100%; resize: vertical; }
 #send-prompt:hover:not(:disabled) { background: #c7ffdb; }
 #send-prompt:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
 .shortcut { font-size: .85rem; }
+.web-search-option label { cursor: pointer; }
+.web-search-option input { accent-color: var(--mint); }
 .answer-panel { margin: 1.15rem 0 0; padding: .9rem 0 0; border-top: 1px solid var(--edge); }
 .answer-panel h4 { font-size: 1.05rem; margin: 0; }
 .controls, .site-list { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; margin: .65rem 0; }
