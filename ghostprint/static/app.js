@@ -31,7 +31,7 @@ function showFixSteps(fix, target) {
   if (fix.url) linkTo("Open platform instructions", fix.url, target);
 }
 
-function showReview(analysis, target) {
+function showReview(analysis, target, source = "the file") {
   node("h3", "Findings and fixes", target);
   node("p", analysis.answer, target);
   if (!analysis.claims.length) {
@@ -44,7 +44,7 @@ function showReview(analysis, target) {
     const meta = node("p", undefined, card);
     const severity = node("strong", `${finding.risk.level} risk · ${finding.score}/100`, meta);
     severity.className = "finding-risk";
-    node("span", finding.reported ? " · Reported concern" : " · Evidence found in the file", meta);
+    node("span", finding.reported ? " · Reported concern" : ` · Evidence found in ${source}`, meta);
     node("p", finding.claim, card);
     node("p", finding.risk.why, card);
     node("h5", "How to fix it", card);

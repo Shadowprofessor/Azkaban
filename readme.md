@@ -12,6 +12,34 @@ python -m ghostprint demo
 
 Open [the local dashboard](http://127.0.0.1:8765). Click a cell to open its evidence and recommended action. The demo ZIP is synthetic. The dashboard can download the report as JSON.
 
+## Connect an account
+
+In **Connect an account**, choose **Connect** and approve access on the provider’s website. GhostPrint automatically fetches the authorized records and shows findings, evidence, an exposure score when supported, and steps to reduce exposure. **Refresh snapshot** fetches current records during the session. **Disconnect** clears the local token and report. To revoke the OAuth grant at the provider, use **Manage provider access**.
+
+| Connection | What GhostPrint checks |
+| --- | --- |
+| Google Contacts | Saved contact counts and how many records include an email or phone field |
+| GitHub | Account email counts and whether GitHub marks any address public |
+
+These are scoped API snapshots. Other Google data, Spotify data, and other unsupported private account data can be reviewed through supported exports. **Website privacy check** checks any reachable public policy and terms pages without a sign-in or upload. Pair the browser companion to compare a site’s statements with a local browser observation.
+
+Set up either provider before starting the dashboard:
+
+1. For Google, enable the People API in your Google Cloud project and create a **Desktop app** OAuth client. Configure the consent screen and add your Google account as a test user if the app is in testing. [Google desktop OAuth setup](https://developers.google.com/identity/protocols/oauth2/native-app) · [Google Contacts endpoint](https://developers.google.com/people/api/rest/v1/people.connections/list)
+2. For GitHub, register an OAuth app and set its authorization callback URL to `http://127.0.0.1:8765/`. Use the same port as the dashboard. [Register a GitHub OAuth app](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/creating-an-oauth-app) · [GitHub email endpoint](https://docs.github.com/en/rest/users/emails#list-email-addresses-for-the-authenticated-user)
+
+In the PowerShell session that starts GhostPrint, set the two variables for each provider you enabled. Keep the actual values out of source control.
+
+```powershell
+$env:GOOGLE_OAUTH_CLIENT_ID = '<Google desktop client ID>'
+$env:GOOGLE_OAUTH_CLIENT_SECRET = '<Google desktop client secret>'
+$env:GITHUB_OAUTH_CLIENT_ID = '<GitHub OAuth app client ID>'
+$env:GITHUB_OAUTH_CLIENT_SECRET = '<GitHub OAuth app client secret>'
+python -m ghostprint live --port 8765
+```
+
+GhostPrint contacts the selected provider for sign-in and the API pull. Only aggregate evidence appears in the review. Account snapshots and access tokens stay in memory on the laptop running the dashboard, with access tokens usable by GhostPrint for up to one hour. The account review runs locally and sends no records to a model or search service.
+
 ## Audit websites as you browse
 
 ```powershell

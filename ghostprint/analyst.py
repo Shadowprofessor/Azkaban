@@ -147,6 +147,10 @@ def evidence_counts(rows, values, unit):
 
 
 def risk_for(category, flags):
+    if flags["account_email_snapshot"]:
+        if flags["public_account_email"]:
+            return "Medium", "Public email visibility can link this account with other activity using the same address."
+        return "Low", "Account emails can link profiles. This snapshot returned no address explicitly marked public."
     if flags["home_with_coordinates"] or flags["work_with_coordinates"]:
         return "Critical", "The export contains precise coordinates associated with a home or work label. It could expose a sensitive place."
     if flags["precise_coordinates"]:
@@ -174,6 +178,12 @@ def action_for(item):
     guides = retrieve(category, platform="Google" if platform == "YouTube" else platform, category=category, k=1)
     guide = guides[0] if guides and platform else None
     steps = guide["steps"] if guide else steps
+    url = guide["url"] if guide else None
+    if platform == "GitHub" and category == "identity":
+        title = "Review account email visibility"
+        steps = ["Open GitHub email settings and verify which addresses are visible.",
+                 "Enable email privacy if you want GitHub to use its no-reply address for web-based commits."]
+        url = "https://docs.github.com/en/account-and-profile/how-tos/email-preferences/setting-your-commit-email-address"
     if item["reported"] and platform == "Uploaded reports" and category == "security":
         if any("Credentials or session tokens" in signal for signal in item["signals"]):
             title = "Review potential credential exposure"
@@ -186,7 +196,7 @@ def action_for(item):
     return {"title": f"{platform} · {guide['title'] if guide else title}" if platform else title,
             "reason": item["risk"]["why"], "impact": item["risk"]["level"],
             "difficulty": "Medium" if category in {"messages", "location", "contacts", "shopping"} else "Low",
-            "steps": steps, "url": guide["url"] if guide else None}
+            "steps": steps, "url": url}
 
 
 def count_in(row, year):
@@ -492,7 +502,7 @@ def analyze(prompt, report, live_sites=(), live_permissions=None, *, automatic=F
         headline = f"Start with {claims[0]['recommendation']}."
     elif automatic:
         noun = "finding" if len(claims) == 1 else "findings"
-        headline = f"{len(claims)} {noun} from the uploaded files, highest priority first."
+        headline = f"{len(claims)} {noun} from the available evidence, highest priority first."
     elif len(categories) == 1 and categories & {"location", "contacts"} and len(claims) > 1:
         services = ", ".join(sorted({item["platform"] for item in claims if item["platform"]}))
         headline = f"The supplied evidence contains {LABELS[next(iter(categories))]} records from {services}."

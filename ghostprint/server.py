@@ -4,12 +4,13 @@ from secrets import token_urlsafe
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from threading import BoundedSemaphore, Lock
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, urlsplit
 from zipfile import BadZipFile
 
 from .analyst import analyze, is_personal_question
 from .archive_signals import KNOWN_PLATFORMS
 from .cases import BY_CASE
+from .connections import PROVIDERS, ConnectionProblem, Connections
 from .model import rank
 from .imports import import_batch
 from .public_pages import public_url
@@ -42,6 +43,7 @@ class Handler(BaseHTTPRequestHandler):
 def dashboard(report, port, voice_model=None):
     static = Path(__file__).with_name("static")
     activity = WebActivity()
+    connections = Connections()
     voice = LocalVoice(voice_model)
     speech = Speech()
     pairing_code = token_urlsafe(24)
@@ -52,6 +54,7 @@ def dashboard(report, port, voice_model=None):
         ("/app.js", "app.js", "text/javascript"),
         ("/live.js", "live.js", "text/javascript"),
         ("/site.js", "site.js", "text/javascript"),
+        ("/connections.js", "connections.js", "text/javascript"),
         ("/style.css", "style.css", "text/css"),
     ]}
 
@@ -65,6 +68,23 @@ def dashboard(report, port, voice_model=None):
                 self.send_json(403, {"error": "Use the local dashboard URL."})
             elif self.path == "/api/report":
                 self.send_json(200, report)
+            elif self.path == "/api/connections":
+                self.send_json(200, {"accounts": connections.status()})
+            elif self.path.startswith("/?"):
+                try:
+                    parameters = parse_qs(urlsplit(self.path).query, max_num_fields=16)
+                except ValueError:
+                    parameters = {}
+                states, codes = parameters.get("state", []), parameters.get("code", [])
+                if len(states) == 1 and (len(codes) == 1 or "error" in parameters):
+                    connections.finish(states[0], codes[0] if len(codes) == 1 else None,
+                                       denied="error" in parameters)
+                self.send_response(303)
+                self.send_header("Location", "/#connected-apps")
+                self.send_header("Cache-Control", "no-store")
+                self.send_header("Referrer-Policy", "no-referrer")
+                self.send_header("Content-Length", "0")
+                self.end_headers()
             elif self.path == "/api/live":
                 self.send_json(200, {"sites": activity.snapshot()})
             elif self.path == "/api/live/settings":
@@ -102,7 +122,28 @@ def dashboard(report, port, voice_model=None):
                 self.send_json(403, {"error": "Use the local dashboard to submit this request."})
                 return
             try:
-                if self.path == "/api/import":
+                if self.path == "/api/connections":
+                    body = json.loads(self.read_body(2048))
+                    if (not isinstance(body, dict) or set(body) != {"provider", "action"}
+                            or not isinstance(body["provider"], str) or body["provider"] not in PROVIDERS):
+                        raise ValueError("Choose a supported account connection.")
+                    key, action = body["provider"], body["action"]
+                    try:
+                        if action == "connect":
+                            url = connections.begin(key, self.server.server_port)
+                            self.send_json(200, {"authorization_url": url})
+                            return
+                        if action == "refresh":
+                            connections.refresh(key)
+                        elif action == "disconnect":
+                            connections.disconnect(key)
+                        else:
+                            raise ValueError("Unknown account action.")
+                    except ConnectionProblem as error:
+                        self.send_json(409, {"error": str(error)})
+                        return
+                    self.send_json(200, {"accounts": connections.status()})
+                elif self.path == "/api/import":
                     if self.headers.get_content_type() != "application/octet-stream":
                         raise ValueError("Expected a GhostPrint file upload.")
                     if not import_lock.acquire(blocking=False):
