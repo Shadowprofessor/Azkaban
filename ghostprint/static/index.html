@@ -40,9 +40,13 @@
         <label for="ask-site">Website hostname <span class="muted">(optional)</span></label>
         <input type="text" id="ask-site" placeholder="example.com" maxlength="253" autocomplete="off">
         <label for="ask-prompt">Your prompt</label>
-        <textarea id="ask-prompt" rows="3" maxlength="1500" placeholder="How do I block this site from using my microphone?"></textarea>
+        <div class="prompt-composer">
+          <textarea id="ask-prompt" rows="3" maxlength="1500" aria-describedby="prompt-shortcut"
+            placeholder="How do I block this site from using my microphone?"></textarea>
+          <button id="send-prompt" type="submit" aria-controls="ask-answer">Send</button>
+        </div>
+        <p id="prompt-shortcut" class="shortcut">Enter to send · Shift+Enter for a new line</p>
         <div class="controls">
-          <button type="submit">Find privacy steps</button>
           <button id="record-voice" type="button" disabled>Use microphone</button>
           <label>Dictation language <select id="dictation-language" disabled><option value="">Automatic</option></select></label>
           <button id="read-prompt" type="button" disabled>Read prompt aloud</button>
@@ -52,9 +56,12 @@
         <p id="voice-status" role="status"></p>
         <p id="lookup-translation" class="muted" hidden></p>
         <audio id="spoken-audio" controls hidden></audio>
-        <p id="ask-status" role="status"></p>
       </form>
-      <div id="ask-result"></div>
+      <div id="ask-answer" class="answer-panel" role="region" aria-labelledby="answer-heading" hidden>
+        <h3 id="answer-heading" tabindex="-1">Answer</h3>
+        <p id="ask-status" role="status"></p>
+        <div id="ask-result"></div>
+      </div>
     </section>
     <section data-archive-section>
       <div class="section-head"><h2>Footprint map</h2><button id="download" hidden>Download report</button></div>

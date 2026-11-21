@@ -24,6 +24,8 @@ python -m ghostprint live
 4. Visit a few websites. The dashboard shows foreground hostnames and recent counts. Choose **Pause recording** in the extension or **Clear activity** in the dashboard at any time.
 5. To find site-specific evidence, use **Find privacy links on this page** in the extension. In GhostPrint, click the site's hostname to see any same-site privacy links found and general steps. You can also type a hostname without installing the extension and ask about permissions, cookies, or account deletion.
 
+Type or dictate a privacy prompt, then click **Send** or press Enter. The **Answer** panel shows the recommended steps and their sources. Press Shift+Enter to add a line to the prompt.
+
 Live recording covers ordinary browser tabs with public-style HTTP(S) hostnames in paired Chrome or Edge sessions. Browser-internal pages, incognito, other desktop apps, full navigation paths, queries, page contents, form input, and credentials are outside that recording scope. The optional link scan reads matching same-origin links when explicitly requested. Activity is kept in the dashboard's memory and expires when it exits. Copy a new code after restarting.
 
 ## Turn on offline voice

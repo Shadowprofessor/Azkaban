@@ -28,6 +28,15 @@ input, textarea { font: inherit; color: var(--ink); background: var(--surface); 
   border-radius: .45rem; padding: .55rem .7rem; max-width: 100%; }
 textarea { display: block; width: 100%; resize: vertical; }
 #ask-form > label { display: block; margin: .65rem 0 .25rem; }
+.prompt-composer { display: flex; align-items: flex-end; flex-wrap: wrap; gap: .65rem; }
+.prompt-composer textarea { flex: 1 1 15rem; min-width: 0; }
+#send-prompt { margin-left: auto; min-width: 5rem; padding: .55rem 1rem;
+  background: var(--mint); border-color: var(--mint); color: var(--bg); font-weight: 700; }
+#send-prompt:hover:not(:disabled) { background: #c7ffdb; }
+#send-prompt:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+.shortcut { font-size: .85rem; }
+.answer-panel { margin: 1.15rem 0 0; padding: .9rem 0 0; border-top: 1px solid var(--edge); }
+.answer-panel h4 { font-size: 1.05rem; margin: 0; }
 .controls, .site-list { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; margin: .65rem 0; }
 .controls > label, .controls select { min-width: 0; max-width: 100%; }
 audio { max-width: 100%; }

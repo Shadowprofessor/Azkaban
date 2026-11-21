@@ -1,6 +1,8 @@
 const ui = (id) => document.getElementById(id);
 const promptField = ui("ask-prompt");
 const siteField = ui("ask-site");
+const askForm = ui("ask-form");
+const sendButton = ui("send-prompt");
 const recorderButton = ui("record-voice");
 const tts = window.speechSynthesis;
 let transcript;
@@ -66,6 +68,8 @@ ui("clear-activity").addEventListener("click", async () => {
   try {
     await submitJson("/api/live/clear", {});
     askRequest++;
+    sendButton.disabled = false;
+    ui("ask-answer").hidden = true;
     ui("ask-result").replaceChildren();
     ui("ask-status").textContent = "";
     siteField.value = "";
@@ -78,39 +82,61 @@ ui("clear-activity").addEventListener("click", async () => {
 async function runQuestion() {
   const id = ++askRequest;
   const status = ui("ask-status");
-  status.textContent = "Searching local guides…";
+  const panel = ui("ask-answer");
   const target = ui("ask-result");
+  const spoken = transcript?.text === promptField.value ? transcript : undefined;
+  const prompt = (spoken?.lookup || promptField.value).trim();
+  const site = siteField.value.trim();
+  panel.hidden = false;
   target.replaceChildren();
+  if (!prompt && !site) {
+    status.textContent = "Enter a question or choose a website first.";
+    sendButton.disabled = false;
+    promptField.focus();
+    return;
+  }
+  sendButton.disabled = true;
+  status.textContent = "Searching local guides…";
   try {
-    const spoken = transcript?.text === promptField.value ? transcript : undefined;
-    const prompt = spoken?.lookup || promptField.value;
-    const answer = await submitJson("/api/live/ask", { site: siteField.value.trim(), prompt });
+    const answer = await submitJson("/api/live/ask", { site, prompt });
     if (id !== askRequest) return;
-    status.textContent = answer.site ? `Guidance for ${answer.site}` : "";
-    if (answer.links.length) {
-      const article = localNode("article", "", target);
-      localNode("h3", "Privacy links found on the page", article);
-      const list = localNode("ul", "", article);
-      for (const url of answer.links) linkTo(url, url, localNode("li", "", list));
-    }
+    status.textContent = answer.site ? `Guidance for ${answer.site}` : "Based on local privacy guides.";
     for (const guide of answer.guides) {
       const article = localNode("article", "", target);
-      localNode("h3", guide.title, article);
+      localNode("h4", guide.title, article);
       const list = localNode("ol", "", article);
       for (const step of guide.steps) localNode("li", step, list);
       linkTo("Open source", guide.url, article);
     }
-    if (!answer.guides.length && !answer.links.length) {
-      localNode("p", "No matching local guide. Try asking about permissions, cookies, or account deletion.", target);
+    if (answer.links.length) {
+      const article = localNode("article", "", target);
+      localNode("h4", "Privacy links found on the page", article);
+      const list = localNode("ul", "", article);
+      for (const url of answer.links) linkTo(url, url, localNode("li", "", list));
     }
+    if (!answer.guides.length) {
+      status.textContent = "No matching answer. Try asking about permissions, cookies, or account deletion.";
+    }
+    ui("answer-heading").scrollIntoView({ block: "nearest" });
   } catch (error) {
-    if (id === askRequest) status.textContent = error.message;
+    if (id === askRequest) {
+      status.textContent = error instanceof TypeError ? "Could not reach GhostPrint. Check that the local dashboard is running, then try again." : error.message;
+    }
+  } finally {
+    if (id === askRequest) sendButton.disabled = false;
   }
 }
 
-ui("ask-form").addEventListener("submit", (event) => {
+askForm.addEventListener("submit", (event) => {
   event.preventDefault();
   runQuestion();
+});
+
+promptField.addEventListener("keydown", (event) => {
+  if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
+    event.preventDefault();
+    if (!sendButton.disabled) askForm.requestSubmit();
+  }
 });
 
 ui("copy-pairing").addEventListener("click", async () => {
