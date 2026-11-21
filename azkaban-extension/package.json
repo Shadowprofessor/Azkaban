@@ -8,7 +8,11 @@
     "build": "wxt build",
     "zip": "wxt zip",
     "typecheck": "tsc --noEmit",
-    "postinstall": "wxt prepare"
+    "postinstall": "wxt prepare",
+    "package": "bash ../scripts/package-extension.sh",
+    "test:score": "node --experimental-strip-types e2e/phase8.mjs",
+    "test:alerts": "node --experimental-strip-types e2e/phase9.mjs",
+    "test:bridge": "node --experimental-strip-types e2e/phase10.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.65.1",

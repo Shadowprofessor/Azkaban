@@ -22,3 +22,6 @@ next-env.d.ts
 # training caches / datasets (rebuilt by train/build_dataset.py)
 train/cache/
 train/data/
+
+# packaged extension zips
+dist/
