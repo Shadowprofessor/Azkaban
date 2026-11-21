@@ -1,7 +1,7 @@
 "use client";
 
 import { AGENT_WS_URL, type AgentToUi, type UiToAgent } from "@/lib/live/protocol";
-import { useAgent } from "./store";
+import { suppressToastsFor, useAgent } from "./store";
 
 const FLUSH_MS = 100;
 const MAX_BACKOFF_MS = 5000;
@@ -56,6 +56,7 @@ class AgentSocket {
     this.ws = ws;
     ws.onopen = () => {
       this.attempt = 0;
+      suppressToastsFor(1500);
       useAgent.getState().setConn("open");
     };
     ws.onmessage = (ev) => {

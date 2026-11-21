@@ -67,6 +67,9 @@ let toastSeq = 0;
 const lastToastByKey = new Map<string, number>();
 const TOAST_KEY_COOLDOWN_MS = 30_000;
 const TOAST_LEVELS = new Set(["warn", "critical"]);
+// On (re)connect the agent replays history; don't toast what the user already saw.
+let suppressToastsUntil = 0;
+export const suppressToastsFor = (ms: number) => (suppressToastsUntil = Date.now() + ms);
 
 export const useAgent = create<State>((set, get) => ({
   conn: "connecting",
@@ -144,7 +147,7 @@ export const useAgent = create<State>((set, get) => ({
           insightOrder = [m.key, ...insightOrder.filter((k) => k !== m.key)].slice(0, 200);
           const now = Date.now();
           const last = lastToastByKey.get(m.key) ?? 0;
-          if (TOAST_LEVELS.has(m.level) && (isNew || now - last > TOAST_KEY_COOLDOWN_MS)) {
+          if (now >= suppressToastsUntil && TOAST_LEVELS.has(m.level) && (isNew || now - last > TOAST_KEY_COOLDOWN_MS)) {
             lastToastByKey.set(m.key, now);
             toasts = [...toasts, { id: ++toastSeq, level: m.level, title: m.title, detail: m.detail }].slice(-3);
           }
