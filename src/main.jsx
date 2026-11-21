@@ -23,6 +23,7 @@ import './ledger.css';
 const wsOverride = (import.meta.env.VITE_AGENT_WS_URL || '').trim();
 const socketKey = 'ghostprint-agent-url';
 const getAgentUrl = () => localStorage.getItem(socketKey) || wsOverride || AGENT_SOCKET_DEFAULT;
+const detectDeviceType = () => /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || '') || Boolean(navigator.userAgentData?.mobile) ? 'phone' : 'laptop';
 const countryNames = { US: 'United States', IL: 'Israel', IE: 'Ireland', IN: 'India', SG: 'Singapore', GB: 'United Kingdom', DE: 'Germany' };
 const piiNames = { adid: 'Advertising ID', gps: 'Location', imei: 'IMEI', email: 'Email', phone: 'Phone', contact: 'Contacts', clipboard: 'Clipboard' };
 const piiShort = { adid: 'AD ID', gps: 'GPS', imei: 'IMEI', email: 'EMAIL', phone: 'PHONE', contact: 'CONTACT', clipboard: 'CLIPBOARD' };
@@ -51,7 +52,7 @@ function App() {
   const filters = useGhostStore((s) => s.filters);
   const selectedVerdict = useGhostStore((s) => selectedFlowId ? s.verdicts[selectedFlowId] : undefined);
   const [page, setPage] = useState('report');
-  const [device, setDevice] = useState('laptop');
+  const [device] = useState(detectDeviceType);
   const [socketUrl, setSocketUrl] = useState(getAgentUrl());
   const [urlDraft, setUrlDraft] = useState(getAgentUrl());
   const [drawer, setDrawer] = useState(false);
@@ -168,7 +169,7 @@ function App() {
   }, [notify]);
   const selectFlow = (id) => { store.getState().selectFlow(id); setDrawer(true); };
 
-  if (!consent) return <ConsentGate agent={agent} device={device} setDevice={setDevice} socketUrl={socketUrl} onAccept={() => { store.getState().setConsent(true); setPage('report'); }} onSettings={() => setSettings(true)} />;
+  if (!consent) return <ConsentGate agent={agent} device={device} socketUrl={socketUrl} onAccept={() => { store.getState().setConsent(true); setPage('report'); }} onSettings={() => setSettings(true)} />;
 
   const filteredFlows = flows.filter((flow) => {
     const query = search.trim().toLowerCase();
@@ -216,7 +217,7 @@ function App() {
 
 function Brand({ showV2 = true }) { return <div className="brand"><div className="brand-mark"><span/><span/><span/></div><div><b>ghostprint</b><small>PRIVACY FORENSICS</small></div>{showV2 && <span className="brand-v2">V2</span>}</div>; }
 
-function ConsentGate({ agent, device, setDevice, socketUrl, onAccept, onSettings }) {
+function ConsentGate({ agent, device, socketUrl, onAccept, onSettings }) {
   const [showSetup, setShowSetup] = useState(false);
   const [checked, setChecked] = useState(false);
   return <div className="consent-screen">
@@ -243,7 +244,7 @@ function ConsentGate({ agent, device, setDevice, socketUrl, onAccept, onSettings
       </section>
     </main>
     <footer className="consent-bottom"><span><Brand/></span><span>BUILT FOR YOUR OWN DEVICES <i/> YOUR EVIDENCE, YOUR DECISION</span><a href="#top" onClick={(event)=>{event.preventDefault();window.scrollTo({top:0,behavior:'smooth'});}}>Back to top</a></footer>
-    {showSetup && <div className="setup-overlay"><section className="consent-card setup-card" role="dialog" aria-modal="true" aria-labelledby="setup-heading"><button className="setup-close" aria-label="Close setup" onClick={() => setShowSetup(false)}><X size={17}/></button><div className="consent-card-top"><div className="consent-emblem"><Radar size={22}/><span/></div><div><span className="card-overline">BEFORE YOU BEGIN</span><h2 id="setup-heading">Choose what to review</h2></div></div><label className="field-label">DEVICE & ACCOUNT SCOPE</label><div className="device-choices"><button className={device === 'laptop' ? 'chosen' : ''} onClick={() => setDevice('laptop')}><Laptop size={16}/>My laptop<span>{device === 'laptop' && <Check size={13}/>}</span></button><button className={device === 'phone' ? 'chosen' : ''} onClick={() => setDevice('phone')}><Smartphone size={16}/>My phone<span>{device === 'phone' && <Check size={13}/>}</span></button></div><div className="agent-check-card"><span className={`agent-check-icon ${agent.connected ? 'online' : ''}`}><Link2 size={16}/></span><span><b>{agent.connected ? 'Local audit service connected' : 'Local audit service not connected'}</b><small>{agent.connected ? `Ready${agent.version ? ` ? ${agent.version}` : ''} to receive a local audit.` : 'You can review the interface now. Connect your local audit service to receive observations.'}</small></span><button onClick={onSettings}><Settings2 size={14}/> Configure</button></div><label className="consent-check"><input type="checkbox" checked={checked} onChange={(event) => setChecked(event.target.checked)}/><span className="custom-check"><Check size={12}/></span><span><b>I own this device and accounts, or have permission to review them</b><small>I authorize review only of the apps I choose to link. Capture is limited to devices and networks I own or may audit.</small></span></label><button className="btn primary continue-btn" disabled={!checked} onClick={() => { setShowSetup(false); onAccept(); }}>I confirm and continue <ArrowRight size={15}/></button><div className="consent-card-footer"><ShieldCheck size={13}/> Your account, your choice</div></section></div>}
+    {showSetup && <div className="setup-overlay"><section className="consent-card setup-card" role="dialog" aria-modal="true" aria-labelledby="setup-heading"><button className="setup-close" aria-label="Close setup" onClick={() => setShowSetup(false)}><X size={17}/></button><div className="consent-card-top"><div className="consent-emblem"><Radar size={22}/><span/></div><div><span className="card-overline">BEFORE YOU BEGIN</span><h2 id="setup-heading">Choose what to review</h2></div></div><label className="field-label">DEVICE SCOPE</label><div className="detected-device"><span className="detected-device-icon">{device === 'phone' ? <Smartphone size={16}/> : <Laptop size={16}/>}</span><span><b>This {device === 'phone' ? 'phone' : 'laptop'}</b><small>Detected automatically</small></span><Check size={14}/></div><div className="agent-check-card"><span className={`agent-check-icon ${agent.connected ? 'online' : ''}`}><Link2 size={16}/></span><span><b>{agent.connected ? 'Local audit service connected' : 'Local audit service not connected'}</b><small>{agent.connected ? `Ready${agent.version ? ` ? ${agent.version}` : ''} to receive a local audit.` : 'You can review the interface now. Connect your local audit service to receive observations.'}</small></span><button onClick={onSettings}><Settings2 size={14}/> Configure</button></div><label className="consent-check"><input type="checkbox" checked={checked} onChange={(event) => setChecked(event.target.checked)}/><span className="custom-check"><Check size={12}/></span><span><b>I own this device and accounts, or have permission to review them</b><small>I authorize review only of the apps I choose to link. Capture is limited to devices and networks I own or may audit.</small></span></label><button className="btn primary continue-btn" disabled={!checked} onClick={() => { setShowSetup(false); onAccept(); }}>I confirm and continue <ArrowRight size={15}/></button><div className="consent-card-footer"><ShieldCheck size={13}/> Your account, your choice</div></section></div>}
   </div>;
 }
 

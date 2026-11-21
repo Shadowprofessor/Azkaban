@@ -959,6 +959,12 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .consent-screen { padding-inline:clamp(18px,3vw,48px); }
 .landing-main,.consent-bottom { width:100%; }
 .landing-proof article>b,.landing-proof article>small { color:#fff; }
+.detected-device { display:flex; align-items:center; gap:10px; margin:0 0 13px; padding:10px; border:1px solid #d5d5c9; border-radius:2px; background:#f0eee5; color:#334038; }
+.detected-device-icon { width:30px; height:30px; flex:none; display:grid; place-items:center; background:#e4e9dc; color:#536e49; }
+.detected-device>span:nth-child(2) { display:flex; flex-direction:column; gap:4px; flex:1; }
+.detected-device b { color:#30372d; font-size:9px; }
+.detected-device small { color:#727a70; font-size:8px; }
+.detected-device>svg { color:#507e54; }
 .landing-product {
   border:1px solid #36324f;
   background:linear-gradient(150deg,#19172b 0%,#171526 72%,#211a36 100%);
