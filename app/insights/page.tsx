@@ -53,6 +53,32 @@ function Detail({ i }: { i: InsightMsg }) {
         leaks {String(d.baseline)} → {String(d.current)} · score {Math.round(Number(d.scoreBefore))} → {Math.round(Number(d.scoreAfter))}
       </p>
     );
+  if (i.kind === "unknown_tracker" && typeof d.domain === "string") {
+    const conf = Number(d.confidence);
+    const top = Array.isArray(d.topFeatures) ? (d.topFeatures as { feature: string; value: number; median: number }[]) : [];
+    return (
+      <div className="mt-3 space-y-2" data-testid="unknown-tracker">
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          <span className="rounded bg-raised px-1.5 py-0.5 font-mono">{d.domain}</span>
+          <span className="rounded bg-warning/15 px-1.5 py-0.5 text-warning">{String(d.category)}</span>
+          <span className="text-muted">confidence</span>
+          <span className="h-1.5 w-24 rounded-full bg-raised" aria-hidden>
+            <span className="block h-full rounded-full bg-warning" style={{ width: `${Math.round(Math.min(1, Math.max(0, conf)) * 100)}%` }} />
+          </span>
+          <span className="font-mono tabular-nums">{Number.isFinite(conf) ? conf.toFixed(2) : "?"}</span>
+        </div>
+        {top.length > 0 && (
+          <ul className="flex flex-wrap gap-1.5" aria-label="Features behind this call">
+            {top.map((t) => (
+              <li key={t.feature} className="rounded bg-raised px-1.5 py-0.5 font-mono text-[11px]">
+                <span className="text-muted">{t.feature}:</span> {t.value} <span className="text-muted">(median {t.median})</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    );
+  }
   const chips = ["app", "company", "host", "pii", "algo", "field", "via", "apps"].filter((k) => d[k] !== undefined);
   if (!chips.length) return null;
   return (
