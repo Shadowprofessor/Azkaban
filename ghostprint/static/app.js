@@ -219,6 +219,25 @@ function showCoverage(report) {
   }
 }
 
+function showImportInventory(report, target) {
+  const inventory = node("details", undefined, target);
+  node("summary", "Data examined in this import", inventory);
+  const counts = new Map();
+  for (const row of report.analyst_sources ?? []) {
+    const label = `${row.platform} · ${row.kind}`;
+    counts.set(label, (counts.get(label) ?? 0) + row.count);
+  }
+  if (counts.size) {
+    const list = node("ul", undefined, inventory);
+    for (const [label, count] of counts) node("li", `${label} · ${count.toLocaleString()} records`, list);
+    node("p", "A record can contribute to more than one category.", inventory);
+  } else {
+    node("p", "No supported data categories were recognized in the files.", inventory);
+  }
+  const link = node("a", "See parsed, unrecognized, and unreadable files", inventory);
+  link.href = "#import-coverage";
+}
+
 function showModelDemo(demo) {
   if (!demo) return;
   byId("model-demo").hidden = false;
@@ -260,6 +279,7 @@ function renderReport(report) {
     byId("risk-score").textContent = score == null ? "Insufficient evidence" :
       `${score}/100 · ${report.review.risk.level}`;
     showReview(report.review, byId("review-result"));
+    showImportInventory(report, byId("review-result"));
   }
   if (report.live_only) {
     byId("status").textContent = "Live browsing session · processed on this laptop";

@@ -30,9 +30,10 @@ function showAccounts(accounts) {
     if (account.error) node("p", account.error, card);
     if (!account.snapshot) continue;
 
-    const { synced_at, review } = account.snapshot;
+    const { synced_at, review, record_count } = account.snapshot;
     const checked = node("p", "Last checked ", card);
     node("time", new Date(synced_at).toLocaleString(), checked).dateTime = synced_at;
+    node("p", `Authorized data examined · ${record_count.toLocaleString()} records`, card);
     if (review.score === null) {
       node("p", review.answer, card);
       for (const limit of review.limitations) node("p", limit, card);

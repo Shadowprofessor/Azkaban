@@ -24,6 +24,7 @@ function showWebsiteReview(result, websiteReview) {
   node("p", review.score == null ? "Exposure score · Insufficient evidence" :
     `Exposure score · ${review.score}/100 · ${review.risk.level} risk`, websiteReview);
   showReview(review, websiteReview, "the browser snapshot", false);
+  showWebsiteInventory(result, websiteReview);
 }
 
 const browserDataLabels = {
@@ -102,38 +103,6 @@ function showWebsite(result, websiteResults) {
   switchButton.addEventListener("click", () => openTabPicker());
   node("p", "These comparisons cover the available text and this snapshot. A mismatch needs investigation and does not prove a leak. A match does not establish compliance, consent, or server retention.", websiteResults);
 
-  node("h3", "What the website says about your data", websiteResults);
-  if (!result.statements.length) node("p", "No clear data statements could be extracted from the pages read.", websiteResults);
-  const grouped = groupStatements(result.statements, "data");
-  for (const [data, statements] of grouped) {
-    const summary = node("details", undefined, websiteResults);
-    node("summary", `${data} · ${summarizeStatements(statements)}`, summary);
-    for (const statement of statements) {
-      node("p", `${statementActions[statement.action]} · ${statementStances[statement.stance]}`, summary);
-      showQuote(statement, summary);
-    }
-  }
-  if (result.retention.length) {
-    const details = node("details", undefined, websiteResults);
-    node("summary", "How long the site says it keeps data", details);
-    for (const row of result.retention) showQuote(row, details);
-  }
-  if (result.observation) {
-    const details = node("details", undefined, websiteResults);
-    node("summary", "Browser evidence captured on this laptop", details);
-    const snapshot = result.observation;
-    node("p", `Captured ${new Date(snapshot.seen).toLocaleString()}`, details);
-    if (snapshot.forms.length) node("p", `Visible form categories · ${snapshot.forms.map((key) => browserDataLabels[key]).join(", ")}`, details);
-    const granted = Object.entries(snapshot.permissions).filter(([, state]) => state === "granted").map(([name]) => name);
-    if (granted.length) node("p", `Granted browser permissions · ${granted.join(", ")}. These permissions alone do not show use.`, details);
-    const { local, session } = snapshot.storage;
-    node("p", `Browser storage entries · Local ${local ?? "unavailable"}, session ${session ?? "unavailable"}`, details);
-    if (snapshot.hosts.length) {
-      node("p", "Other hostnames in resource URLs", details);
-      const hosts = node("ul", undefined, details);
-      for (const host of snapshot.hosts) node("li", host, hosts);
-    }
-  }
   node("h3", "Documents checked", websiteResults);
   const documents = node("ul", undefined, websiteResults);
   for (const item of result.documents) {
@@ -143,6 +112,52 @@ function showWebsite(result, websiteResults) {
       linkTo("Open original", item.url, row);
     } else {
       row.append(` · ${item.detail}`);
+    }
+  }
+  if (result.documents.some((item) => item.status === "Read")) {
+    const query = new URLSearchParams({ q: `"${result.site}" privacy incident data breach public report` });
+    linkTo("Search the web for public privacy reports", `https://www.google.com/search?${query}`, websiteResults);
+  }
+}
+
+function showWebsiteInventory(result, target) {
+  node("h3", "What the website says about your data", target);
+  if (!result.statements.length) node("p", "No clear data statements could be extracted from the pages read.", target);
+  const grouped = groupStatements(result.statements, "data");
+  for (const [data, statements] of grouped) {
+    const summary = node("details", undefined, target);
+    node("summary", `${data} · ${summarizeStatements(statements)}`, summary);
+    for (const statement of statements) {
+      node("p", `${statementActions[statement.action]} · ${statementStances[statement.stance]}`, summary);
+      showQuote(statement, summary);
+    }
+  }
+  if (result.retention.length) {
+    const details = node("details", undefined, target);
+    node("summary", "How long the site says it keeps data", details);
+    for (const row of result.retention) showQuote(row, details);
+  }
+  if (result.observation) {
+    const details = node("details", undefined, target);
+    node("summary", "Browser evidence captured on this laptop", details);
+    const snapshot = result.observation;
+    node("p", `Captured ${new Date(snapshot.seen).toLocaleString()}`, details);
+    if (snapshot.forms.length) node("p", `Visible form categories · ${snapshot.forms.map((key) => browserDataLabels[key]).join(", ")}`, details);
+    const permissions = Object.entries(snapshot.permissions).map(([name, state]) => `${name} (${state})`);
+    if (permissions.length) node("p", `Browser permission states · ${permissions.join(", ")}`, details);
+    if (snapshot.requests.length) {
+      node("p", "Data categories observed in URL parameters", details);
+      const requests = node("ul", undefined, details);
+      for (const item of snapshot.requests) {
+        node("li", `${browserDataLabels[item.category]} · ${item.host} · ${item.count} observations`, requests);
+      }
+    }
+    const { local, session } = snapshot.storage;
+    node("p", `Browser storage entries · Local ${local ?? "unavailable"}, session ${session ?? "unavailable"}`, details);
+    if (snapshot.hosts.length) {
+      node("p", "Other hostnames in resource URLs", details);
+      const hosts = node("ul", undefined, details);
+      for (const host of snapshot.hosts) node("li", host, hosts);
     }
   }
 }

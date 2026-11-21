@@ -54,6 +54,10 @@ python -m ghostprint live
 
 ## Check a website's privacy policy and terms
 
+PrivacyGPT shows the data it found alongside the prioritized findings. Website reviews include public policy disclosures and the available browser evidence. Import reviews list recognized record types and link to file coverage. Connected accounts show how many authorized records were examined. A score requires evidence that supports a finding.
+
+If a public policy document is readable, **Search the web for public privacy reports** opens a search using the website hostname. Search results are external leads to verify before treating them as findings.
+
 Use **Check a website without signing in** or **Choose an open tab** in Chrome or Edge with the updated GhostPrint companion. Open the dashboard in the same browser profile as the tabs you want to check. If you already loaded the companion, click **Reload** for it on the browser’s extensions page, then reload the dashboard. The first time the browser needs permission to list tabs, select **Show open tabs** and approve the prompt. The picker shows the tab titles and website names. Choose a tab and allow one-time page inspection to start the review. The rest of the tab list stays in the picker. Account sign-in, file upload, and recording are optional. Browser settings, local files, native desktop apps, and tabs in other browser profiles are outside this picker’s scope. [Chrome extension permission controls](https://developer.chrome.com/docs/extensions/reference/api/permissions)
 
 For a public-document check without the companion, enter a public HTTPS hostname and select **Check policies**. GhostPrint reads the website's public documents and shows short, linked statements about collection, use, storage, retention, sharing, and sale. When discovery misses a document, use the specific policy link option. The policy reader makes public requests without account credentials and strips query strings. It can read supported HTML, plain-text, and text-based PDF documents. A blocked or unreadable document is marked unavailable.
