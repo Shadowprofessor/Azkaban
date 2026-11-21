@@ -44,7 +44,7 @@ field("toggle").addEventListener("click", async () => {
 });
 
 async function inspectPage() {
-  const pattern = /^\/(?:[a-z]{2}(?:-[a-z]{2})?\/)?(?:legal\/|policies\/)?(?:privacy(?:[-_]policy|[-_]notice)?|data[-_]deletion|delete[-_]account|cookie[-_]policy|cookies)(?:\.html)?\/?$/i;
+  const pattern = /^\/(?:[a-z]{2}(?:-[a-z]{2})?\/)?(?:legal\/|policies\/)?(?:privacy(?:[-_]policy|[-_]notice)?|data[-_]deletion|delete[-_]account|cookie[-_]policy|cookies|terms(?:[-_]of[-_](?:use|service)|[-_]and[-_]conditions)?|user[-_]agreement)(?:\.html?)?\/?$/i;
   const links = new Set();
   for (const anchor of document.querySelectorAll("a[href]")) {
     if (!URL.canParse(anchor.href, location.href)) continue;
@@ -65,7 +65,62 @@ async function inspectPage() {
       }
     }));
   }
-  return { site: location.hostname, links: [...links], permissions };
+  const categories = {
+    email: "email", emailaddress: "email", useremail: "email",
+    tel: "phone", phone: "phone", phonenumber: "phone", mobilephone: "phone",
+    fullname: "name", firstname: "name", lastname: "name", givenname: "name", familyname: "name",
+    streetaddress: "address", shippingaddress: "address", billingaddress: "address",
+    ccnumber: "payment", cardnumber: "payment", creditcardnumber: "payment",
+    password: "credentials", currentpassword: "credentials", newpassword: "credentials", sessiontoken: "credentials",
+    deviceid: "identifiers", advertisingid: "identifiers", mobileadvertisingid: "identifiers",
+    ipaddress: "ip", clientip: "ip", searchquery: "activity", searchterm: "activity",
+    gpslatitude: "location", gpslongitude: "location", latitude: "location", longitude: "location"
+  };
+  const categoryFor = (key) => {
+    const normalized = key.toLowerCase().replace(/[^a-z0-9]/g, "");
+    return Object.hasOwn(categories, normalized) ? categories[normalized] : undefined;
+  };
+  const forms = new Set();
+  for (const control of [...document.querySelectorAll("input,textarea,select")].slice(0, 500)) {
+    if (control.type === "hidden" || !control.getClientRects().length) continue;
+    for (const label of [control.type || "", control.name || "", ...(control.autocomplete?.split(/\s+/) ?? [])]) {
+      const category = categoryFor(label);
+      if (category) forms.add(category);
+    }
+  }
+  const hosts = new Set();
+  const seen = new Map();
+  const entries = performance.getEntriesByType("navigation").concat(performance.getEntriesByType("resource")).slice(0, 500);
+  for (const entry of entries) {
+    if (!URL.canParse(entry.name)) continue;
+    const url = new URL(entry.name);
+    if (!["https:", "http:"].includes(url.protocol) || !/\.[a-z][a-z0-9-]*$/i.test(url.hostname)) continue;
+    if (url.hostname !== location.hostname && hosts.size < 20) hosts.add(url.hostname);
+    const matched = new Set();
+    for (const key of url.searchParams.keys()) {
+      const category = categoryFor(key);
+      if (category && url.searchParams.get(key)?.trim()) matched.add(category);
+      if (matched.size >= 10) break;
+    }
+    for (const category of matched) {
+      const key = `${url.hostname}:${category}`;
+      const found = seen.get(key);
+      if (found) found.count++;
+      else if (seen.size < 24) seen.set(key, { host: url.hostname, category, count: 1 });
+    }
+  }
+  const storageCount = (type) => {
+    try { return window[type].length; } catch { return null; }
+  };
+  return {
+    site: location.hostname,
+    links: [...links],
+    permissions,
+    observation: {
+      forms: [...forms], requests: [...seen.values()], hosts: [...hosts],
+      storage: { local: storageCount("localStorage"), session: storageCount("sessionStorage") }
+    }
+  };
 }
 
 field("inspect").addEventListener("click", async () => {
@@ -79,7 +134,7 @@ field("inspect").addEventListener("click", async () => {
       body: JSON.stringify(result.result), signal: AbortSignal.timeout(2500)
     });
     if (!response.ok) throw new Error("Check the pairing code and open an HTTP or HTTPS website.");
-    field("message").textContent = `Sent ${result.result.links.length} privacy links and ${Object.keys(result.result.permissions).length} permission checks to GhostPrint.`;
+    field("message").textContent = "Browser evidence is ready in GhostPrint. Check this website to compare it with the public policies.";
   } catch (error) {
     field("message").textContent = error.message;
   }

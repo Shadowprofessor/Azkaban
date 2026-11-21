@@ -22,7 +22,13 @@ python -m ghostprint live
 2. Enable Developer mode and choose **Load unpacked**. Select the repository's `browser-companion` folder.
 3. In [GhostPrint](http://127.0.0.1:8765), open **Pair browser companion** and copy the code. Paste it into the extension popup, choose **Start recording**, and accept the browser's optional tab permission.
 4. Visit a few websites. The dashboard shows foreground hostnames and recent counts. Choose **Pause recording** in the extension or **Clear activity** in the dashboard at any time.
-5. To find site-specific evidence, use **Check privacy links and permissions** in the extension. In GhostPrint, click the site's hostname to see any same-site privacy links found and general steps. PrivacyGPT can also report aggregate browser permission grants from explicit checks.
+5. To find site-specific evidence, use **Capture website privacy evidence** in the extension. Then select the site's hostname in GhostPrint and choose **Check policies**. PrivacyGPT can also report aggregate browser permission grants from explicit checks.
+
+## Check a website's privacy policy and terms
+
+Under **Website privacy check**, enter a public HTTPS hostname and select **Check policies**. GhostPrint reads the website's public documents and shows short, linked statements about collection, use, storage, retention, sharing, and sale. When discovery misses a document, use the specific policy link option. The policy reader makes public requests without account credentials and strips query strings. It can read supported HTML, plain-text, and text-based PDF documents. A blocked or unreadable document is marked unavailable.
+
+For a comparison, open the website in Chrome or Edge and use **Capture website privacy evidence** in the paired companion. The check captures visible field categories, nonempty named URL parameter categories, hostnames, permission states, and local/session-storage entry counts. The dashboard receives no field values, request bodies, full browsing URLs, or storage contents. The comparison distinguishes an explicit disclosure, a scoped policy statement, missing evidence, and a possible mismatch with a clear denial. Different hostnames can belong to the same organization or a service provider. A mismatch needs verification, and an apparent match only applies to the inspected evidence. GhostPrint leaves consent decisions to you.
 
 Type or dictate a privacy prompt, then click **Send** or press Enter. The **Answer** panel shows the recommended steps and their sources. Press Shift+Enter to add a line to the prompt.
 

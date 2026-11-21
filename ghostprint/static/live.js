@@ -59,8 +59,9 @@ async function refreshSites() {
       button.type = "button";
       button.title = `Last recorded at ${new Date(item.seen).toLocaleString()}`;
       button.addEventListener("click", () => {
-        siteField.value = item.site;
-        runQuestion();
+        const website = ui("policy-website");
+        website.value = item.site;
+        website.focus();
       });
     }
   } catch {

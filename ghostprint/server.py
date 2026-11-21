@@ -3,7 +3,8 @@ import json
 from secrets import token_urlsafe
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from threading import Lock
+from threading import BoundedSemaphore, Lock
+from urllib.parse import urlsplit
 from zipfile import BadZipFile
 
 from .analyst import analyze, is_personal_question
@@ -11,6 +12,8 @@ from .archive_signals import KNOWN_PLATFORMS
 from .cases import BY_CASE
 from .model import rank
 from .imports import import_batch
+from .public_pages import public_url
+from .site_policy import website_check
 from .speech import Speech
 from .voice import LocalVoice
 from .web_activity import WebActivity, answer, hostname
@@ -43,10 +46,12 @@ def dashboard(report, port, voice_model=None):
     speech = Speech()
     pairing_code = token_urlsafe(24)
     import_lock = Lock()
+    site_checks = BoundedSemaphore(2)
     assets = {route: (static / name, mime) for route, name, mime in [
         ("/", "index.html", "text/html"),
         ("/app.js", "app.js", "text/javascript"),
         ("/live.js", "live.js", "text/javascript"),
+        ("/site.js", "site.js", "text/javascript"),
         ("/style.css", "style.css", "text/css"),
     ]}
 
@@ -118,11 +123,28 @@ def dashboard(report, port, voice_model=None):
                         import_lock.release()
                     self.send_json(200, incoming)
                 elif self.path == "/api/live/event":
-                    body = json.loads(self.read_body(4096))
-                    if not isinstance(body, dict) or set(body) - {"site", "links", "permissions"} or "site" not in body:
-                        raise ValueError("Expected a hostname, with optional public links and permission states.")
-                    activity.add(body["site"], body.get("links"), body.get("permissions"))
+                    body = json.loads(self.read_body(16_384))
+                    if not isinstance(body, dict) or set(body) - {"site", "links", "permissions", "observation"} or "site" not in body:
+                        raise ValueError("Expected a hostname and optional browser evidence.")
+                    activity.add(body["site"], body.get("links"), body.get("permissions"), body.get("observation"))
                     self.send_json(200, {"recorded": True})
+                elif self.path == "/api/site/check":
+                    body = json.loads(self.read_body(8192))
+                    if not isinstance(body, dict) or set(body) - {"website", "privacy_url", "terms_url"}:
+                        raise ValueError("Enter a website to check.")
+                    website = public_url(body.get("website"), homepage=True)
+                    host = urlsplit(website).hostname
+                    alias = host[4:] if host.startswith("www.") else f"www.{host}"
+                    observation = activity.site_observation(host) or activity.site_observation(alias)
+                    links = activity.links(host) or activity.links(alias)
+                    if not site_checks.acquire(blocking=False):
+                        self.send_json(409, {"error": "Website checks are busy. Try again when one finishes."})
+                        return
+                    try:
+                        result = website_check(website, observation, links, body.get("privacy_url"), body.get("terms_url"))
+                    finally:
+                        site_checks.release()
+                    self.send_json(200, result)
                 elif self.path == "/api/live/clear":
                     activity.clear()
                     self.send_json(200, {"cleared": True})

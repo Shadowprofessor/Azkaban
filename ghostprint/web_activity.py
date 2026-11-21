@@ -5,6 +5,7 @@ from threading import Lock
 from urllib.parse import urlsplit
 
 from .retrieval import PLATFORMS, retrieve, tokens
+from .site_policy import validate_observation
 from .web_search import search_public_question
 
 
@@ -56,7 +57,8 @@ FACT_QUESTION = re.compile(r"^\s*(?:what (?:is|are)\b|define\b|explain\b|who\b|w
 ACTION_QUESTION = re.compile(r"\b(?:how to|way to|steps? to|how (?:can|do|should) (?:i|we))\b", re.I)
 PATH = re.compile(r"/(?:[a-z]{2}(?:-[a-z]{2})?/)?(?:legal/|policies/)?"
                   r"(?:privacy(?:[-_]policy|[-_]notice)?|data[-_]deletion|delete[-_]account|"
-                  r"cookie[-_]policy|cookies)(?:\.html)?/?$", re.I)
+                  r"cookie[-_]policy|cookies|terms(?:[-_]of[-_](?:use|service)|[-_]and[-_]conditions)?|"
+                  r"user[-_]agreement)(?:\.html?)?/?$", re.I)
 DOMAIN = re.compile(r"(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+"
                     r"[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?", re.I)
 SITE_PERMISSIONS = {"camera", "microphone", "geolocation", "notifications"}
@@ -91,11 +93,13 @@ class WebActivity:
         self._events = deque(maxlen=2000)
         self._links = {}
         self._permission_checks = {}
+        self._site_observations = {}
         self._lock = Lock()
 
-    def add(self, site, links=None, permissions=None):
+    def add(self, site, links=None, permissions=None, observation=None):
         site = hostname(site)
         found = safe_links(site, links) if links is not None else None
+        snapshot = validate_observation(observation) if observation is not None else None
         if permissions is not None and (not isinstance(permissions, dict)
                 or set(permissions) - SITE_PERMISSIONS
                 or any(state not in ("granted", "denied", "prompt") for state in permissions.values())):
@@ -107,6 +111,10 @@ class WebActivity:
                 self._permission_checks[site] = permissions.copy()
                 if len(self._permission_checks) > 200:
                     self._permission_checks.pop(next(iter(self._permission_checks)))
+            if snapshot is not None:
+                self._site_observations[site] = snapshot
+                if len(self._site_observations) > 200:
+                    self._site_observations.pop(next(iter(self._site_observations)))
             if not self._events or self._events[-1]["site"] != site or links is None:
                 self._events.append({"site": site, "seen": datetime.now(UTC).isoformat(timespec="seconds")})
             if len(self._links) > 200:
@@ -130,11 +138,19 @@ class WebActivity:
             return Counter(name for check in self._permission_checks.values()
                            for name, state in check.items() if state == "granted")
 
+    def site_observation(self, site):
+        with self._lock:
+            checked = self._site_observations.get(site)
+            if checked is None:
+                return None
+            return {**checked, "permissions": self._permission_checks.get(site, {}).copy()}
+
     def clear(self):
         with self._lock:
             self._events.clear()
             self._links.clear()
             self._permission_checks.clear()
+            self._site_observations.clear()
 
 
 def answer(prompt, site, observed_links, *, search_web=False):

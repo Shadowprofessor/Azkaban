@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="/style.css">
   <script src="/app.js" defer></script>
   <script src="/live.js" defer></script>
+  <script src="/site.js" defer></script>
 </head>
 <body>
   <main>
@@ -28,6 +29,25 @@
       </details>
       <p id="import-help" class="shortcut">ZIP, PDF, Word, Excel, CSV, JSON, text, and other supported formats · Up to eight files and 512 MiB total</p>
       <p id="import-status" role="status"></p>
+    </section>
+    <section id="website-check" aria-labelledby="website-heading">
+      <h2 id="website-heading">Website privacy check</h2>
+      <p>See what a site says it collects, keeps, or shares. Pair the browser companion to compare those statements with a snapshot of the page you visited.</p>
+      <form id="website-form">
+        <div class="controls website-controls">
+          <label>Website <input id="policy-website" required placeholder="example.com" maxlength="1200" autocomplete="off"></label>
+          <button id="check-website" type="submit">Check policies</button>
+        </div>
+        <details>
+          <summary>Use specific policy links</summary>
+          <div class="controls website-controls">
+            <label>Privacy Policy URL <input id="policy-privacy" type="url" maxlength="1200"></label>
+            <label>Terms URL <input id="policy-terms" type="url" maxlength="1200"></label>
+          </div>
+        </details>
+      </form>
+      <p id="website-status" role="status"></p>
+      <div id="website-results"></div>
     </section>
     <section id="automatic-review" aria-labelledby="review-heading" hidden>
       <h2 id="review-heading" tabindex="-1">PrivacyGPT review</h2>
