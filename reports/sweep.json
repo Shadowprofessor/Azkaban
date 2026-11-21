@@ -1,0 +1,104 @@
+{
+ "selected_by": "mean inner-validation F1 (validation split carved from each training fold; test folds never used for selection)",
+ "rows": [
+  {
+   "lex_rows": null,
+   "real_weight": 4,
+   "n_synth": 20000,
+   "inner_val_f1": 0.8222,
+   "heldout_f1_tuned": 0.8107,
+   "heldout_pr_auc": 0.8676,
+   "monthly": false
+  },
+  {
+   "lex_rows": 0,
+   "real_weight": 1,
+   "n_synth": 0,
+   "inner_val_f1": 0.8343,
+   "heldout_f1_tuned": 0.8228,
+   "heldout_pr_auc": 0.8837,
+   "monthly": false
+  },
+  {
+   "lex_rows": null,
+   "real_weight": 30,
+   "n_synth": 0,
+   "inner_val_f1": 0.8338,
+   "heldout_f1_tuned": 0.8235,
+   "heldout_pr_auc": 0.868,
+   "monthly": false
+  },
+  {
+   "lex_rows": 30000,
+   "real_weight": 10,
+   "n_synth": 20000,
+   "inner_val_f1": 0.8243,
+   "heldout_f1_tuned": 0.8206,
+   "heldout_pr_auc": 0.8724,
+   "monthly": false
+  },
+  {
+   "lex_rows": 30000,
+   "real_weight": 10,
+   "n_synth": 0,
+   "inner_val_f1": 0.8348,
+   "heldout_f1_tuned": 0.822,
+   "heldout_pr_auc": 0.8714,
+   "monthly": false
+  },
+  {
+   "lex_rows": 10000,
+   "real_weight": 20,
+   "n_synth": 10000,
+   "inner_val_f1": 0.8308,
+   "heldout_f1_tuned": 0.8226,
+   "heldout_pr_auc": 0.8873,
+   "monthly": false
+  },
+  {
+   "lex_rows": null,
+   "real_weight": 60,
+   "n_synth": 20000,
+   "inner_val_f1": 0.8314,
+   "heldout_f1_tuned": 0.8223,
+   "heldout_pr_auc": 0.8825,
+   "monthly": false
+  },
+  {
+   "lex_rows": 0,
+   "real_weight": 1,
+   "n_synth": 0,
+   "monthly": true,
+   "inner_val_f1": 0.8263,
+   "heldout_f1_tuned": 0.8173,
+   "heldout_pr_auc": 0.8827
+  },
+  {
+   "lex_rows": null,
+   "real_weight": 30,
+   "n_synth": 0,
+   "monthly": true,
+   "inner_val_f1": 0.8263,
+   "heldout_f1_tuned": 0.8194,
+   "heldout_pr_auc": 0.8776
+  },
+  {
+   "lex_rows": 30000,
+   "real_weight": 10,
+   "n_synth": 0,
+   "monthly": true,
+   "inner_val_f1": 0.8292,
+   "heldout_f1_tuned": 0.8224,
+   "heldout_pr_auc": 0.8738
+  }
+ ],
+ "best": {
+  "lex_rows": 30000,
+  "real_weight": 10,
+  "n_synth": 0,
+  "inner_val_f1": 0.8348,
+  "heldout_f1_tuned": 0.822,
+  "heldout_pr_auc": 0.8714,
+  "monthly": false
+ }
+}

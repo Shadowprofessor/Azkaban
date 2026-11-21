@@ -194,6 +194,7 @@ def main() -> None:
 
     # Real behaviour: WhoTracks.me per-domain monthly stats, latest months first.
     behaviour: dict[str, dict] = {}
+    monthly: list[dict] = []   # every (domain, month) real observation, for train-side augmentation
     today = date.today()
     months = []
     y, m = today.year, today.month
@@ -212,8 +213,12 @@ def main() -> None:
         wtm_months.append(mo)
         for row in csv.DictReader(io.StringIO(raw.decode("utf-8"))):
             d = norm(row["host_tld"])
-            if d and d not in behaviour:  # keep the most recent month's aggregate
-                behaviour[d] = {k: row[k] for k in row if k not in ("", "country", "host_tld")}
+            if not d:
+                continue
+            rec = {k: row[k] for k in row if k not in ("", "country", "host_tld")}
+            monthly.append({"domain": d, **{f"wtm_{k}": (pd.to_numeric(v, errors="coerce") if k != "month" else v) for k, v in rec.items()}})
+            if d not in behaviour:  # keep the most recent month's aggregate
+                behaviour[d] = rec
     if wtm_months:
         fetched.append(f"whotracks({len(wtm_months)} months)")
 
@@ -233,6 +238,7 @@ def main() -> None:
     df = pd.DataFrame(rows)
     OUT.parent.mkdir(parents=True, exist_ok=True)
     df.to_parquet(OUT, index=False)
+    pd.DataFrame(monthly).to_parquet(OUT.with_name("wtm_monthly.parquet"), index=False)
 
     real = df[df.is_real_behavior]
     info = {"built": date.today().isoformat(), "sources_fetched": fetched, "sources_skipped": skipped,
