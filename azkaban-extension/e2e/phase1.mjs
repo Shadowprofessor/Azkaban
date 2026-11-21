@@ -1,0 +1,11 @@
+import { launch, startSite } from "./harness.mjs";
+const site = await startSite();
+const { ctx, sw } = await launch();
+const page = await ctx.newPage();
+await page.goto(site.url);
+await page.evaluate(() => window.fireTrackers());
+await page.waitForTimeout(2500);
+const flows = await sw.evaluate(async () => (await chrome.storage.session.get("flows")).flows ?? []);
+console.log("flows:", flows.length);
+for (const f of flows.slice(0, 6)) console.log(" ", f.app, f.method, f.host, f.path, "3p=" + f.thirdParty, "bytes=" + f.bytes);
+await ctx.close(); site.close();
