@@ -58,6 +58,10 @@ def build_parser() -> argparse.ArgumentParser:
     ds.add_argument("file", nargs="?", default=str(REPO_ROOT / "azkaban-agent" / "demo" / "demo.azk"))
 
     sub.add_parser("fetch-geo", help="Download the offline DB-IP country database")
+
+    nc = sub.add_parser("nim-check", help="Verify the NVIDIA NIM key, model and endpoint end to end")
+    nc.add_argument("--prompt", default="Reply with exactly: READY",
+                    help="Prompt to send (no user data is involved)")
     return p
 
 
@@ -143,6 +147,32 @@ def main(argv: list[str] | None = None) -> int:
         from .demo import write
         n = write(args.file)
         print(f"[azkaban] wrote {n} synthetic flows to {args.file}")
+        return 0
+
+    if args.cmd == "nim-check":
+        from .nim import NimClient
+        cfg = _cfg(args)
+        c = NimClient(cfg)
+        print(f"[azkaban] endpoint {cfg.nim_url}")
+        print(f"[azkaban] model    {c.model}")
+        print(f"[azkaban] key      {'set (' + cfg.nim_key[:8] + '...)' if cfg.nim_key else 'MISSING'}")
+        if not c.configured:
+            print("[azkaban] NIM is not configured. Put NVIDIA_API_KEY in .env "
+                  "(and do not set AZK_NIM_ENABLED=0).", file=sys.stderr)
+            return 1
+        if not c.available(force=True):
+            print("[azkaban] endpoint did not accept the key (GET /models failed). "
+                  "Check the key at build.nvidia.com and that this machine has internet.",
+                  file=sys.stderr)
+            return 2
+        print("[azkaban] endpoint reachable, key accepted.")
+        try:
+            out = c.ask("You are terse. Answer in plain text with no markdown.", args.prompt,
+                        max_tokens=64, log_payload=False)
+        except Exception as ex:
+            print(f"[azkaban] chat failed: {type(ex).__name__}: {ex}", file=sys.stderr)
+            return 3
+        print(f"[azkaban] model replied: {out!r}")
         return 0
 
     if args.cmd == "fetch-geo":

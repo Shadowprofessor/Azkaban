@@ -69,7 +69,12 @@ class Agent:
             "mode": self.mode if self.capturing else "idle",
             "proxy": f"127.0.0.1:{self.cfg.proxy_port}" if self.mode == "live" else "",
             "flows": self.flow_count,
-            "engines": {"llm": self.llm_ok, "rag": self.legal.rag_source == "rag", "model": self.pipeline.severity.available, "geo": self.pipeline.geo.available},
+            "engines": {"llm": self.llm_ok, "rag": self.legal.rag_source == "rag",
+                        "model": self.pipeline.severity.available, "geo": self.pipeline.geo.available,
+                        "nim": self.legal.nim.configured},
+            # Additive (v1): which reasoning engine answered last, for the UI badge.
+            "llmEngine": self.legal.engine,
+            "llmModel": self.legal.nim.model if self.legal.nim.configured else self.cfg.ollama_model,
             "version": __version__,
         }
 

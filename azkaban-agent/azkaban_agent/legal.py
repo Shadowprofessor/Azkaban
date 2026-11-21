@@ -19,6 +19,7 @@ from pathlib import Path
 from .config import REPO_ROOT, Config
 from .features import UNEXPECTED, app_category
 from .net import http_get, http_post
+from .nim import NimClient, clean
 from .schema import Citation, Verdict
 
 SYSTEM = (
@@ -96,11 +97,15 @@ class LegalEngine:
         self.cfg = cfg
         self.retrieve, self.rag_source = _load_retrieve()
         self.cache: dict[str, dict] = {}
+        self.nim = NimClient(cfg)
+        self.engine = "none"        # which engine answered last: nim | ollama | none
 
     # ------------------------------------------------------------- health
     def llm_available(self) -> bool:
-        if self.cfg.nim_enabled:
-            return bool(self.cfg.nim_key)
+        if self.nim.configured and self.nim.available():
+            return True
+        if self.cfg.nim_enabled and not self.cfg.nim_fallback_ollama:
+            return False
         try:
             r = http_get(f"{self.cfg.ollama_url}/api/tags", cfg=self.cfg, timeout=1.5)
             names = [m.get("name", "") for m in r.json().get("models", [])]
@@ -132,14 +137,28 @@ class LegalEngine:
         return r.json()["message"]["content"]
 
     def _nim(self, messages: list[dict]) -> str:
-        payload = {"model": self.cfg.nim_model, "messages": messages, "temperature": 0, "max_tokens": 600}
-        # Transparency: print EXACTLY what leaves the machine.
-        print("[azkaban] NIM request payload (aggregated metadata + statute text only):\n"
-              + json.dumps(payload, indent=2), file=sys.stderr, flush=True)
-        r = http_post(self.cfg.nim_url, cfg=self.cfg, timeout=120, json=payload,
-                          headers={"Authorization": f"Bearer {self.cfg.nim_key}"})
-        r.raise_for_status()
-        return r.json()["choices"][0]["message"]["content"]
+        return self.nim.chat(messages, max_tokens=700, temperature=0.0, json_object=True)
+
+    def _complete(self, messages: list[dict]) -> str:
+        """Nemotron first, local Ollama as the offline fallback.
+
+        A NIM failure is not fatal when Ollama is up: the verdict is the product, not the
+        vendor. `self.engine` records which one answered so status can show it.
+        """
+        if self.nim.configured:
+            try:
+                out = self._nim(messages)
+                if out.strip():
+                    self.engine = "nim"
+                    return out
+            except Exception as ex:
+                if not self.cfg.nim_fallback_ollama:
+                    raise
+                print(f"[azkaban] NIM unavailable ({type(ex).__name__}: {ex}); trying local Ollama",
+                      file=sys.stderr, flush=True)
+        out = self._ollama(messages)
+        self.engine = "ollama"
+        return out
 
     # ------------------------------------------------------------- verdict
     def verdict(self, flow_id: str, facts: dict) -> Verdict | None:
@@ -162,8 +181,9 @@ class LegalEngine:
                                         "observed facts establish it without assumptions."},
         ]
         try:
-            content = self._nim(messages) if self.cfg.nim_enabled else self._ollama(messages)
+            content = self._complete(messages)
         except Exception:
+            self.engine = "none"
             return None   # LLM down: caller still has flows + severity
         result = self._validate(content, law)
         self.cache[key] = result
@@ -180,7 +200,7 @@ class LegalEngine:
         status = str(data.get("status", "")).lower()
         if status not in ("compliant", "questionable", "violation"):
             status = "questionable"
-        reasoning = str(data.get("reasoning", "")).strip() or "The model returned no reasoning."
+        reasoning = clean(str(data.get("reasoning", ""))) or "The model returned no reasoning."
         cites = []
         for c in data.get("citations", []) or []:
             d = by_section.get(str(c).strip().lower())
