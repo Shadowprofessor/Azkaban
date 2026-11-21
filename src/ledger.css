@@ -897,6 +897,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .hero-overline { border-color:#353149; }
 .hero-overline span:last-child { color:#8782a3; }
 .landing-hero { border-color:#29283a; }
+.landing-hero::after { display:none !important; }
 .landing-hero h1 em,.toolkit-heading h2 em,.landing-legal h2 em { color:#b5a0ff; }
 .hero-deck,.landing-proof p,.landing-legal p { color:#b3b0c7; }
 .hero-text-link,.landing-evidence a,.landing-proof article>a { color:#c1b5ef; border-color:#645595; }
@@ -955,6 +956,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .consent-bottom>a { color:#c4b7f5; }
 .consent-bottom>span:nth-child(2) i { background:#53d9dd; }
 .consent-bottom { border-color:#29283a; }
+.consent-screen { padding-inline:clamp(18px,3vw,48px); }
+.landing-main,.consent-bottom { width:100%; }
 .landing-product {
   border:1px solid #36324f;
   background:linear-gradient(150deg,#11131e 0%,#0c0e17 72%,#151126 100%);

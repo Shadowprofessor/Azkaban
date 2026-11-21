@@ -214,14 +214,14 @@ function App() {
   </div>;
 }
 
-function Brand() { return <div className="brand"><div className="brand-mark"><span/><span/><span/></div><div><b>ghostprint</b><small>PRIVACY FORENSICS</small></div><span className="brand-v2">V2</span></div>; }
+function Brand({ showV2 = true }) { return <div className="brand"><div className="brand-mark"><span/><span/><span/></div><div><b>ghostprint</b><small>PRIVACY FORENSICS</small></div>{showV2 && <span className="brand-v2">V2</span>}</div>; }
 
 function ConsentGate({ agent, device, setDevice, socketUrl, onAccept, onSettings }) {
   const [showSetup, setShowSetup] = useState(false);
   const [checked, setChecked] = useState(false);
   return <div className="consent-screen">
     <header className="consent-top">
-      <Brand/>
+      <Brand showV2={false}/>
       <nav className="landing-nav" aria-label="Main navigation">
         <a href="#method">How it works</a><a href="#evidence">Evidence</a><button onClick={() => setShowSetup(true)}>Explore your footprint <ArrowRight size={14}/></button>
       </nav>
