@@ -52,7 +52,7 @@ async def _run(out_dir: Path) -> dict:
     async with ws:
         for _ in range(200):
             await asyncio.sleep(0.05)
-            if agent.flow_count >= 34 and not agent.capturing:
+            if agent.flow_count >= 38 and not agent.capturing:
                 break
         await ws.send(json.dumps({"type": "blocklist", "action": "apply"}))
         await asyncio.sleep(1.5)

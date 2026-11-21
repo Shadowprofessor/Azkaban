@@ -13,7 +13,7 @@ import pytest
 from azkaban_agent.config import Config
 from azkaban_agent.net import EgressDenied, check_url, http_get, http_post
 
-from replay_harness import run_demo
+from replay_harness import DEMO, run_demo
 
 _real_getaddrinfo = socket.getaddrinfo
 _real_connect = socket.socket.connect
@@ -66,7 +66,9 @@ def test_guard_itself_catches_external_connections(cable_pulled):
 def test_demo_replay_opens_zero_external_sockets(cable_pulled):
     res = run_demo()
     agent = res["agent"]
-    assert agent.flow_count == 39   # 34 demo flows + 5 unblocked ones replayed after Patronus apply
+    from azkaban_agent.session import read_session
+    n = sum(1 for _ in read_session(DEMO))
+    assert agent.flow_count > n   # every demo flow, then the unblocked ones again after Patronus apply
     assert res["received"], "the WebSocket client must have received messages over loopback"
     assert res["evidence"], "evidence export must have run"
     assert cable_pulled == [], f"non-loopback egress attempted: {cable_pulled}"

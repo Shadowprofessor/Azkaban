@@ -15,6 +15,7 @@ from .idle import IdleDetector
 from .insights import InsightEngine
 from .legal import LegalEngine, build_facts, facts_key
 from .mlextra import BeaconAnomaly
+from .tracker_clf import TrackerClassifier, insight as tracker_insight
 from .netwatch import NetWatch
 from .score import ExposureScore
 from .session import Recorder, read_header, replay
@@ -52,6 +53,7 @@ class Agent:
         self.blocklist = Blocklist()
         self.evidence_dir = REPO_ROOT / "evidence"
         self.beacons = BeaconAnomaly()
+        self.tracker_clf = TrackerClassifier()
         self.evidence = EvidenceChain(mode, consent)
         self._blocklist_dirty = False
         self._replay_args: tuple | None = None
@@ -103,6 +105,7 @@ class Agent:
         self.hub.publish({"type": "flow", "flow": flow_dict})
         self.evidence.add_flow(flow_dict)
         f = enriched.flow
+        self.tracker_clf.observe(raw, listed=f.tracker is not None)
         self.beacons.observe(f.app, f.host, f.ts, f.bytes, enriched.tsi, {h.type for h in f.pii},
                              enriched.hashed_hits, listed=f.tracker is not None)
         for hit in enriched.honey:
@@ -299,12 +302,9 @@ class Agent:
                                       f"{a['regularityCV']}, {int(a['idleFraction'] * 100)}% while idle). "
                                       "Flagged by an IsolationForest over all observed app/host pairs.",
                             "data": a})
-            for s in self.beacons.suspected():
-                out.append({"type": "insight", "key": f"unknown_tracker:{s['host']}", "kind": "unknown_tracker",
-                            "level": "warn", "title": f"Unlisted tracker suspected: {s['host']}",
-                            "detail": f"Not on Exodus or DuckDuckGo lists, but {int(s['identifierRate'] * 100)}% of "
-                                      f"{s['requests']} requests from {s['app']} carry a device or user identifier.",
-                            "data": s})
+            # Unknown trackers: the ONNX classifier (behaviour + structure + lexical), unlisted domains only.
+            for c in self.tracker_clf.candidates():
+                out.append(tracker_insight(c))
         except Exception as ex:   # ML is optional; never break the agent
             out.append({"type": "error", "code": "ml", "message": f"{type(ex).__name__}: {ex}"})
         return out

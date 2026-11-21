@@ -80,6 +80,7 @@ async def replay(path: str | Path, emit: Callable[[dict], None], speed: float = 
                 await asyncio.sleep(0.2)
             rec = dict(r)
             rec["id"] = uuid.uuid4().hex
+            rec["orig_ts"] = r["ts"]  # recorded time: keeps page grouping identical at any replay speed
             rec["ts"] = int(time.time() * 1000)
             rec["replayed"] = True
             emit(rec)
