@@ -51,6 +51,23 @@ def decode(tc: str) -> Tcf | None:
         return None
 
 
+def encode(purposes: list[int], vendors: list[int], cmp_id: int = 10) -> str:
+    """Minimal TCF v2 core-segment encoder (bitfield vendors). Used for tests and demo data."""
+    ds = 16_000_000_000 // 100  # deciseconds, fixed for determinism
+    max_v = max(vendors) if vendors else 0
+    fields = [
+        (2, 6), (ds, 36), (ds, 36), (cmp_id, 12), (1, 12), (1, 6), (ord("E") - 65 << 6 | ord("N") - 65, 12),
+        (100, 12), (2, 6), (1, 1), (0, 1), (0, 12),
+        (sum(1 << (23 - (p - 1)) for p in purposes), 24), (0, 24), (0, 1), (ord("I") - 65 << 6 | ord("N") - 65, 12),
+        (max_v, 16), (0, 1),
+    ]
+    bits = "".join(f"{v:0{n}b}" for v, n in fields)
+    bits += "".join("1" if i + 1 in set(vendors) else "0" for i in range(max_v))
+    bits += "0" * (-len(bits) % 8)
+    raw = int(bits, 2).to_bytes(len(bits) // 8, "big")
+    return base64.urlsafe_b64encode(raw).decode().rstrip("=")
+
+
 def find(pairs: list[tuple[str, str]]) -> Tcf | None:
     for k, v in pairs:
         if TCF_KEYS.search(k):

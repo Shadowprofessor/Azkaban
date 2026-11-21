@@ -66,7 +66,17 @@ def test_pinned_flow_has_no_pii_scan():
 
 
 def test_tcf_decode():
-    # v2 TC string (core segment); checks the decoder walks the header without error.
-    s = "COvFyGBOvFyGBAbAAAENAPCAAOAAAAAAAAAAAEEUACCKAAA"
+    s = tcf.encode([1, 2, 3, 4, 7, 10], [1, 2, 755, 793])
     t = tcf.decode(s)
-    assert t is not None and isinstance(t.purposes, list)
+    assert t is not None
+    assert t.purposes == [1, 2, 3, 4, 7, 10]
+    assert t.vendors == [1, 2, 755, 793]
+
+
+def test_contact_array_reported_once_and_advertiser_id():
+    body = json.dumps({"advertiser_id": "6f1c2a9e-4b7d-4e21-9c3a-5d8e7f0a1b2c",
+                       "contacts": [{"name": "a", "phone": "+15555550101"}, {"name": "b", "phone": "+15555550102"},
+                                    {"name": "c", "phone": "+15555550103"}]})
+    f = pii.scan(record_fields(raw(body=body)))
+    assert [x.type for x in f].count("contact") == 1
+    assert "adid" in types(f)

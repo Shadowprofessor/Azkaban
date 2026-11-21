@@ -14,7 +14,7 @@ PHONE_IN = re.compile(r"(?<!\d)(?:0|91)?([6-9]\d{9})(?!\d)")
 LATLNG = re.compile(r"(?<![\d.])(-?\d{1,2}\.\d{4,})\s*,\s*(-?\d{1,3}\.\d{4,})(?![\d.])")
 FLOAT = re.compile(r"^-?\d{1,3}\.\d{3,}$")
 
-ADID_KEYS = re.compile(r"(^|[._\[])(adid|ad_id|gaid|aaid|idfa|advertising_?id|advertiserid|rdid|ifa|google_ad_id|android_ad_id)($|[._\]])", re.I)
+ADID_KEYS = re.compile(r"(^|[._\[])(adid|ad_id|gaid|aaid|idfa|advertising_?id|advertiser_?id|rdid|ifa|google_ad_id|android_ad_id)($|[._\]])", re.I)
 IMEI_KEYS = re.compile(r"imei|device_?id|meid", re.I)
 PHONE_KEYS = re.compile(r"phone|mobile|msisdn|tel\b|contact_?number|cell", re.I)
 LAT_KEYS = re.compile(r"(^|[._])(lat|latitude)$", re.I)
@@ -113,9 +113,10 @@ def scan_pair(key: str, value: str) -> list[Finding]:
         if -90 <= lat <= 90 and -180 <= lng <= 180 and (lat, lng) != (0.0, 0.0):
             out.append(Finding("gps", f"{lat},{lng}", redact_gps(lat, lng), 0.8, key))
 
-    if CONTACT_KEYS.search(key):
+    leaf = re.sub(r"\[\d+\]", "", key.split(".")[-1])
+    if CONTACT_KEYS.fullmatch(leaf) and "[" not in key:
         out.append(Finding("contact", f"{key}:{v[:64]}", f"contact data in '{key.split('.')[-1]}'", 0.75, key))
-    if CLIP_KEYS.search(key):
+    if CLIP_KEYS.search(leaf):
         out.append(Finding("clipboard", v[:256], f"<clipboard {len(v)} chars>", 0.9, key))
     return out
 

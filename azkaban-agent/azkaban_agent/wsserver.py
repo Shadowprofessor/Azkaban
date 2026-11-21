@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import re
 from collections import deque
 from typing import Awaitable, Callable
@@ -95,4 +96,6 @@ class Hub:
 
 async def start_ws(hub: Hub, port: int, host: str = "127.0.0.1"):
     host = require_loopback(host, "websocket")
+    # Port probes / aborted handshakes are not errors worth a traceback.
+    logging.getLogger("websockets.server").setLevel(logging.CRITICAL)
     return await serve(hub.handler, host, port, origins=LOCAL_ORIGINS)
