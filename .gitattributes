@@ -1,0 +1,10 @@
+# Keep the index on LF regardless of the checkout platform. Windows checkouts of this
+# repo were producing whole-tree CRLF diffs with zero content change.
+* text=auto eol=lf
+
+# Binary assets: never touch.
+*.onnx   binary
+*.mmdb   binary
+*.png    binary
+*.azk    binary
+*.zip    binary
