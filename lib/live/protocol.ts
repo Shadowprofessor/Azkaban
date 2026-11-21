@@ -59,7 +59,9 @@ export interface EvidenceMsg {
 export interface InsightMsg {
   type: 'insight';
   key: string;
-  kind: 'idle_beacons' | 'cross_app' | 'hashed_pii' | 'dns_bypass' | 'bandwidth' | 'honeytoken' | 'recheck';
+  kind:
+    | 'idle_beacons' | 'cross_app' | 'hashed_pii' | 'dns_bypass' | 'bandwidth'
+    | 'honeytoken' | 'recheck' | 'beacon_anomaly' | 'unknown_tracker';
   level: 'info' | 'warn' | 'critical';
   title: string;
   detail: string;

@@ -18,7 +18,7 @@ Replay (.azk) ──────── raw record ──► Pipeline (same path,
 ## Status
 - [x] P0 contracts  - [x] P1 capture  - [x] P2 websocket  - [x] P3 classify  - [x] P4 replay
 - [x] P5 hashed-pii - [x] P6 xgboost  - [x] P7 idle/dns  - [x] P8 legal     - [x] P9 blocklist
-- [x] P10 evidence  - [ ] P11 stretch
+- [x] P10 evidence  - [x] P11 stretch (behavioural; lexical RF rejected, AUC 0.60; Play Store check not done)
 
 ## Contract for the RAG teammate — `rag/query.py`
 The agent imports `from rag.query import retrieve` (repo root on `sys.path`) and falls back to

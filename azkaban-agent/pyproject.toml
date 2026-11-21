@@ -16,6 +16,7 @@ dependencies = [
   "reportlab>=4",
   "onnxruntime>=1.18",
   "maxminddb>=2.5",
+  "scikit-learn>=1.4",
 ]
 
 [project.optional-dependencies]
