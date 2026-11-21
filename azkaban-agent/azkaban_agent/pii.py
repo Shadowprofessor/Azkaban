@@ -100,6 +100,12 @@ def scan_pair(key: str, value: str) -> list[Finding]:
         raw = "+" + m.group(1) + re.sub(r"\D", "", m.group(2))
         if 8 <= len(raw) - 1 <= 15:
             out.append(Finding("phone", raw, "+" + m.group(1) + redact_tail(m.group(2), 3)[-10:], 0.9 if phone_key else 0.7, key))
+    if phone_key:
+        # International number without '+' (e.g. lost to form-decoding).
+        for m in re.finditer(r"(?<!\d)(\d{11,15})(?!\d)", v):
+            num = "+" + m.group(1)
+            if not m.group(1).startswith("91") and not any(f.value == num for f in out):
+                out.append(Finding("phone", num, "+" + redact_tail(m.group(1), 3), 0.75, key))
     if phone_key or not out:
         for m in PHONE_IN.finditer(v):
             num = "+91" + m.group(1)

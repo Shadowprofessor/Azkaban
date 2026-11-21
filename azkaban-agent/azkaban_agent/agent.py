@@ -100,6 +100,8 @@ class Agent:
     async def run_replay(self, path: str, speed: float, loop_forever: bool, wait_client: float) -> None:
         self.loop = asyncio.get_running_loop()
         self.session_header = read_header(path)
+        ident = self.session_header.get("identity") or {}
+        self.pipeline.identity.add_many(ident.get("emails", []), ident.get("phones", []), ident.get("adids", []))
         ws = await self._serve_ws()
         try:
             # Give the dashboard a moment to connect so it sees the whole story.

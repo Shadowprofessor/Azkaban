@@ -17,5 +17,5 @@ Replay (.azk) ──────── raw record ──► Pipeline (same path,
 
 ## Status
 - [x] P0 contracts  - [x] P1 capture  - [x] P2 websocket  - [x] P3 classify  - [x] P4 replay
-- [ ] P5 hashed-pii - [ ] P6 xgboost  - [ ] P7 idle/dns  - [ ] P8 legal     - [ ] P9 blocklist
+- [x] P5 hashed-pii - [ ] P6 xgboost  - [ ] P7 idle/dns  - [ ] P8 legal     - [ ] P9 blocklist
 - [ ] P10 evidence  - [ ] P11 stretch
