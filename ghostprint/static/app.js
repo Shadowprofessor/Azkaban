@@ -1,7 +1,8 @@
 const labels = {
   location: "Location", contacts: "Contacts", connections: "Connections",
   messages: "Messages", security: "Network & sessions", activity: "Activity", interests: "Interests",
-  sharing: "Off-platform activity", shopping: "Purchases", work: "Employment", education: "Education"
+  sharing: "Off-platform activity", shopping: "Purchases", work: "Employment", education: "Education",
+  permissions: "Permissions", identity: "Identity", financial: "Financial"
 };
 const byId = (id) => document.getElementById(id);
 
@@ -177,6 +178,7 @@ function showCoverage(report) {
       `${entry.limited_files} over size limits`
     ].join(" · "), row);
     if (entry.file_limit_reached) node("p", "Scan stopped at the per-export file limit.", row);
+    for (const note of entry.notes ?? []) node("p", note, row);
   }
 }
 

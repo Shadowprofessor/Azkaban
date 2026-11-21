@@ -8,20 +8,24 @@ import zipfile
 from collections import Counter
 from html.parser import HTMLParser
 from pathlib import Path
+from xml.etree.ElementTree import ParseError
 
 from .analyst import analyze
 from .archive_signals import ADDITIONAL_FIELDS, KNOWN_PLATFORMS, archive_hint, classify_extra, evidence_summary, product_and_kind
 from .retrieval import retrieve
+from .generic_evidence import generic_evidence
+from .report_formats import DOCUMENT_CONTAINERS, REPORT_SUFFIXES, ReportFormatError
 
 
 MAX_FILE = 64 * 1024 * 1024
-LOOSE_SUFFIXES = {".csv", ".html", ".js", ".json", ".vcf"}
+LOOSE_SUFFIXES = REPORT_SUFFIXES | {".js", ".vcf"}
 MAX_TOTAL = 384 * 1024 * 1024
 MAX_FILES = 30_000
 MAX_ANALYST_SOURCES = 2_000
 WEIGHTS = {"location": 85, "security": 76, "contacts": 72, "messages": 67,
            "connections": 41, "activity": 34, "interests": 30, "sharing": 64,
-           "shopping": 42, "work": 40, "education": 36}
+           "shopping": 42, "work": 40, "education": 36, "permissions": 78,
+           "identity": 83, "financial": 84}
 REASONS = {
     "location": "Location records can reveal where activity took place.",
     "security": "Session metadata can reveal devices and networks used to access an account.",
@@ -34,6 +38,9 @@ REASONS = {
     "shopping": "Purchase history can reveal spending patterns and interests.",
     "work": "Profile entries can reveal employment history.",
     "education": "Profile entries can reveal educational history.",
+    "permissions": "Granted permissions can provide access to device sensors or notifications.",
+    "identity": "Identity fields can link sensitive records to a person.",
+    "financial": "Financial identifiers can expose an account or make fraudulent use easier.",
 }
 
 
@@ -227,13 +234,13 @@ def audit(inputs):
                 status["file_limit_reached"] = True
                 break
             classification = classify(name, hint)
-            if classification is None:
+            suffix = Path(name).suffix.lower()
+            if classification is None and suffix not in REPORT_SUFFIXES:
                 status["unrecognized_files"] += 1
                 continue
             if size > MAX_FILE or size > MAX_TOTAL - consumed:
                 status["limited_files"] += 1
                 continue
-            platform, category = classification
             try:
                 with open_member("r" if status["kind"] == "zip" else "rb") as stream:
                     data = stream.read(size + 1)
@@ -241,19 +248,40 @@ def audit(inputs):
                 if len(data) > size:
                     status["limited_files"] += 1
                     continue
-                count, extra, preferences, summary = summarize(
-                    data.decode("utf-8-sig"), name, platform, category
-                )
-            except (OSError, ValueError, RuntimeError, zipfile.BadZipFile, csv.Error, RecursionError):
+                count = 0
+                if classification:
+                    platform, category = classification
+                    count, extra, preferences, summary = summarize(
+                        data.decode("utf-8-sig"), name, platform, category
+                    )
+                generic = generic_evidence(data, suffix) if not count and suffix in REPORT_SUFFIXES else {}
+            except ReportFormatError as error:
+                status["unreadable_files"] += 1
+                if str(error) not in status["notes"] and len(status["notes"]) < 5:
+                    status["notes"].append(str(error))
+                continue
+            except (OSError, ValueError, RuntimeError, zipfile.BadZipFile, csv.Error, RecursionError, ParseError, KeyError):
                 status["unreadable_files"] += 1
                 continue
+            evidence = f"Export {input_number} · {name[:400]}"
+            source_id = f"Export {input_number}, file {index + 1}"
+            if generic:
+                status["parsed_files"] += 1
+                for (data_category, origin), item in generic.items():
+                    signal = "; ".join(sorted(item["signals"]))
+                    kind = "Report findings" if origin == "reported" else "Recognized report fields"
+                    references = ", ".join(item["locations"])
+                    summary = {"origin": origin, "flags": {"precise_coordinates": item["precise"]}}
+                    add("Uploaded reports", data_category, item["count"], source_id, signal)
+                    add_source("Uploaded reports", data_category, kind, item["count"],
+                               f"{source_id} · {references}", summary, signal)
+                continue
             if not count:
-                status["empty_or_unsupported_files"] += 1
+                key = "empty_or_unsupported_files" if classification else "unrecognized_files"
+                status[key] += 1
                 continue
             status["parsed_files"] += 1
-            evidence = f"Export {input_number} · {name[:400]}"
             add(platform, category, count, evidence)
-            source_id = f"Export {input_number}, file {index + 1}"
             product, kind = product_and_kind(name, platform, category)
             add_source(product, category, kind, count, source_id, summary)
             for extra_category in {kind for kind, _, _ in extra}:
@@ -283,10 +311,10 @@ def audit(inputs):
         kind = "directory" if path.is_dir() else "zip" if path.suffix.lower() == ".zip" else "file"
         status = dict(export=number, kind=kind,
                       parsed_files=0, unrecognized_files=0, limited_files=0,
-                      unreadable_files=0, empty_or_unsupported_files=0, file_limit_reached=False)
+                      unreadable_files=0, empty_or_unsupported_files=0, file_limit_reached=False, notes=[])
         if path.is_dir():
             scan(directory_members(path), hint, status, number)
-        elif path.is_file() and zipfile.is_zipfile(path):
+        elif path.is_file() and path.suffix.lower() not in DOCUMENT_CONTAINERS and zipfile.is_zipfile(path):
             status["kind"] = "zip"
             with zipfile.ZipFile(path) as archive:
                 scan(archive_members(archive), hint, status, number)
@@ -315,4 +343,12 @@ def audit(inputs):
                              for name, count in artists.most_common(5) if count >= 2],
     }
     report["review"] = analyze("", report, automatic=True)
+    for finding in ranked:
+        if finding["platform"] == "Uploaded reports":
+            matches = [item for item in analyst_sources if item["platform"] == finding["platform"]
+                       and item["category"] == finding["category"]]
+            if matches and all(item.get("origin") == "reported" for item in matches):
+                finding["priority"] = min(finding["priority"], 59)
+                finding["reason"] = "The report describes this concern. Verify it against the underlying records."
+    ranked.sort(key=lambda item: (-item["priority"], item["platform"], item["category"]))
     return report

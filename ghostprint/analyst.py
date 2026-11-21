@@ -26,6 +26,8 @@ CATEGORIES = {
     "work": r"occupation|employment|profession|job|work history",
     "education": r"education|degree|school|university",
     "permissions": r"permissions?",
+    "identity": r"government|passport|national id|social security|birth date|identity",
+    "financial": r"financial|credit card|bank account|payment",
 }
 LABELS = {
     "location": "location", "contacts": "contacts", "security": "device or session",
@@ -33,6 +35,7 @@ LABELS = {
     "connections": "account connection", "sharing": "off-platform activity", "shopping": "purchase",
     "work": "employment profile", "education": "education profile",
     "permissions": "granted site permission",
+    "identity": "identity", "financial": "financial account",
 }
 RISKS = {
     "location": ("Medium", "Location indicators can reveal the places or regions associated with your activity."),
@@ -47,12 +50,14 @@ RISKS = {
     "work": ("Medium", "Employment records can connect professional and personal identities."),
     "education": ("Medium", "Education records can make a profile easier to identify or correlate."),
     "permissions": ("High", "A site with a granted sensor permission can access that sensor subject to browser controls."),
+    "identity": ("High", "Government identifiers and birth dates can make records easier to link and misuse."),
+    "financial": ("High", "Financial account identifiers can expose details that should be shared only when necessary."),
 }
 RISK_ORDER = {"Unknown": 0, "Low": 1, "Medium": 2, "High": 3, "Critical": 4}
 SCORE_BASE = {"Low": 20, "Medium": 45, "High": 70, "Critical": 95}
 BENEFIT = {"permissions": 92, "location": 90, "contacts": 80, "sharing": 78, "messages": 75,
            "security": 70, "activity": 57, "shopping": 52, "connections": 48, "interests": 45,
-           "work": 38, "education": 36}
+           "work": 38, "education": 36, "identity": 84, "financial": 86}
 GENERIC_ACTIONS = {
     "location": ("Review stored location history", ["Review the service's location history and retention controls.",
                  "Remove location records you no longer need and review app location permissions."]),
@@ -77,6 +82,10 @@ GENERIC_ACTIONS = {
                   "Remove fields you do not need to share."]),
     "permissions": ("Revoke unnecessary site permissions", ["Open the site's page information and review its permissions.",
                     "Block or reset access to sensors you do not want the site to use."]),
+    "identity": ("Limit access to identity details", ["Redact identity identifiers from copies that do not need them.",
+                 "Review who can access the originals and how long they are kept."]),
+    "financial": ("Limit access to financial identifiers", ["Remove unnecessary financial identifiers from shared copies.",
+                  "Review access to the original record and retain only the fields needed."]),
 }
 PERSONAL = re.compile(r"\b(?:me|my|mine|i am|am i|i did|did i|was i|have i|i visit|i watch|i listen|personal archive)\b", re.I)
 ANALYSIS = re.compile(
@@ -145,8 +154,12 @@ def risk_for(category, flags):
     return RISKS[category]
 
 
-def claim(text, evidence, level, basis, category, platform, flags=None, *, records):
+def claim(text, evidence, level, basis, category, platform, flags=None, *, records, reported=False):
     risk, why = risk_for(category, flags or Counter())
+    if reported:
+        if RISK_ORDER[risk] > RISK_ORDER["Medium"]:
+            risk = "Medium"
+        why = "The stated concern warrants verification. " + why
     return {
         "claim": text, "evidence": evidence, "confidence": {"level": level, "basis": basis},
         "risk": {"level": risk, "why": why}, "category": category, "platform": platform,
@@ -173,8 +186,8 @@ def discovery(rows, year, *, qualifier=""):
     claims = []
     groups = defaultdict(list)
     for row in rows:
-        groups[row["platform"], row["category"]].append(row)
-    for (platform, category), group in groups.items():
+        groups[row["platform"], row["category"], row.get("origin")].append(row)
+    for (platform, category, origin), group in groups.items():
         if qualifier:
             count = sum(row.get("flags", {}).get(qualifier, 0) for row in group)
             if not count:
@@ -199,15 +212,20 @@ def discovery(rows, year, *, qualifier=""):
             text = f"{platform} has {count:,} {LABELS[category]} records in the available data"
             text += f" for {year}." if year else "."
         signals = sorted({row["signal"] for row, value in zip(group, values) if value and row.get("signal")})
-        if category == "permissions":
+        if origin == "reported":
+            text = f"The uploaded reports describe {count:,} {LABELS[category]} finding{'s' if count != 1 else ''}. Verification is unavailable."
+        elif origin == "observed":
+            text = f"The uploaded files contain {count:,} records with {LABELS[category]} fields."
+        elif category == "permissions":
             text = f"{count:,} checked site-and-permission combination{'s' if count != 1 else ''} had a granted permission."
-        if signals:
+        if signals and origin != "reported":
             text += " Observed fields include " + "; ".join(signal.lower() for signal in signals) + "."
         if not year and not qualifier and flags["precise_coordinates"]:
             text += f" Precise coordinate fields are present in {flags['precise_coordinates']:,} records."
         evidence = evidence_counts(group, values, "matching records")
-        evidence += source_facts([(row, f"Observed fields: {row['signal']}.")
-                                  for row, value in zip(group, values) if value and row.get("signal")])
+        if origin != "reported":
+            evidence += source_facts([(row, f"Observed fields: {row['signal']}.")
+                                      for row, value in zip(group, values) if value and row.get("signal")])
         for flag, label in (
             ("precise_coordinates", "rows with precise coordinate fields"),
             ("home_with_coordinates", "coordinate rows labeled home"),
@@ -215,9 +233,10 @@ def discovery(rows, year, *, qualifier=""):
         ):
             if flags[flag]:
                 evidence += evidence_counts(group, [row.get("flags", {}).get(flag, 0) for row in group], label)
-        claims.append(claim(text, evidence, "High",
-                            "The counted record type or field appears in the available data.",
-                            category, platform, flags, records=count))
+        basis = ("The wording appears in the uploaded report. The underlying real-world claim is unverified."
+                 if origin == "reported" else "The counted record type or field appears in the available data.")
+        claims.append(claim(text, evidence, "Medium" if origin == "reported" else "High",
+                            basis, category, platform, flags, records=count, reported=origin == "reported"))
     return claims
 
 

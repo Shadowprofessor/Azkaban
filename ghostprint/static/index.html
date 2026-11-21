@@ -17,13 +17,13 @@
     </header>
     <section id="import-tools">
       <h2>Import your data</h2>
-      <p>Select the exports you want in one review. GhostPrint starts the analysis on this laptop as soon as you choose the files.</p>
+      <p>Select reports or exports to analyze together. GhostPrint starts the review on this laptop as soon as you choose the files.</p>
       <div class="controls import-controls">
         <label>Platform hint <select id="import-platform"><option value="">Auto-detect</option></select></label>
-        <label for="import-files" class="import-label">Choose export files</label>
-        <input id="import-files" type="file" multiple accept=".zip,.json,.csv,.html,.js,.vcf" aria-describedby="import-help">
+        <label for="import-files" class="import-label">Choose report or export files</label>
+        <input id="import-files" type="file" multiple accept=".zip,.pdf,.docx,.xlsx,.csv,.tsv,.json,.jsonl,.ndjson,.xml,.txt,.md,.log,.html,.htm,.js,.vcf" aria-describedby="import-help">
       </div>
-      <p id="import-help" class="shortcut">ZIP or supported export files · Up to eight files and 512 MiB total · A new import replaces the current review</p>
+      <p id="import-help" class="shortcut">ZIP, PDF, Word, Excel, CSV, JSON, text, and other supported formats · Up to eight files and 512 MiB total</p>
       <p id="import-status" role="status"></p>
     </section>
     <section id="automatic-review" aria-labelledby="review-heading" hidden>

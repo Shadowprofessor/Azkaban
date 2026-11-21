@@ -34,7 +34,7 @@ def validate_member(item):
         raise ValueError("A selected file has an unsupported filename.")
     suffix = PureWindowsPath(name).suffix.lower()
     if suffix not in SUFFIXES:
-        raise ValueError("Select ZIP archives or supported JSON, CSV, HTML, JS, or VCF export files.")
+        raise ValueError("Choose a supported report or archive file. The dashboard lists the accepted formats.")
     limit = IMPORT_LIMIT if suffix == ".zip" else MAX_FILE
     if type(size) is not int or not 0 < size <= limit:
         raise ValueError("A selected file is empty or exceeds its size limit.")
