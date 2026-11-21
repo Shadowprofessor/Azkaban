@@ -17,5 +17,18 @@ Replay (.azk) ──────── raw record ──► Pipeline (same path,
 
 ## Status
 - [x] P0 contracts  - [x] P1 capture  - [x] P2 websocket  - [x] P3 classify  - [x] P4 replay
-- [x] P5 hashed-pii - [x] P6 xgboost  - [x] P7 idle/dns  - [ ] P8 legal     - [ ] P9 blocklist
+- [x] P5 hashed-pii - [x] P6 xgboost  - [x] P7 idle/dns  - [x] P8 legal     - [ ] P9 blocklist
 - [ ] P10 evidence  - [ ] P11 stretch
+
+## Contract for the RAG teammate — `rag/query.py`
+The agent imports `from rag.query import retrieve` (repo root on `sys.path`) and falls back to
+`azkaban_agent/rag_stub.py` when it is missing. Call shape:
+
+```python
+retrieve(facts: dict, k: int = 4) -> list[dict]   # each: {"source", "section", "url", "text"}
+```
+`facts` is structured only — never PII values: `pii_types, company, tracker_category, is_tracker,
+jurisdiction, cross_border, consent, consent_signal, app, app_category, pii_unexpected_for_app_category,
+hashed_identifier, same_adid_across_apps, while_user_idle, decrypted`.
+`section` must be a label like `"Section 6"` / `"Section 2(t)"`; the agent only accepts citations whose
+label is in the returned set. Raise any exception when the index is down → verdict says "Law unavailable".

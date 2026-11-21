@@ -3,12 +3,14 @@ from __future__ import annotations
 
 import asyncio
 import sys
+from collections import OrderedDict
 
 from . import __version__
 from .config import Config
 from .pipeline import Pipeline
 from .idle import IdleDetector
 from .insights import InsightEngine
+from .legal import LegalEngine, build_facts, facts_key
 from .netwatch import NetWatch
 from .score import ExposureScore
 from .session import Recorder, read_header, replay
@@ -37,6 +39,12 @@ class Agent:
             self.addon = CaptureAddon(self._on_raw_threadsafe)
         self.flow_count = 0
         self.capturing = True
+        self.legal = LegalEngine(cfg)
+        self.llm_ok = False
+        self.recent: OrderedDict[str, object] = OrderedDict()   # flowId -> Enriched (memory only)
+        self.verdict_q: asyncio.Queue | None = None
+        self.pending_keys: set[str] = set()
+        self.auto_verdict_min = 60
 
     # ------------------------------------------------------------------ status
     def status(self) -> dict:
@@ -46,7 +54,7 @@ class Agent:
             "mode": self.mode if self.capturing else "idle",
             "proxy": f"127.0.0.1:{self.cfg.proxy_port}" if self.mode == "live" else "",
             "flows": self.flow_count,
-            "engines": {"llm": False, "rag": False, "model": self.pipeline.severity.available, "geo": self.pipeline.geo.available},
+            "engines": {"llm": self.llm_ok, "rag": self.legal.rag_source == "rag", "model": self.pipeline.severity.available, "geo": self.pipeline.geo.available},
             "version": __version__,
         }
 
@@ -72,15 +80,72 @@ class Agent:
         self.flow_count += 1
         self.exposure.add(self.pipeline.fact(enriched))
         self.hub.publish({"type": "flow", "flow": enriched.flow.to_dict()})
+        self.recent[enriched.flow.id] = enriched
+        if len(self.recent) > 2000:
+            self.recent.popitem(last=False)
+        if enriched.flow.severity >= self.auto_verdict_min and enriched.flow.pii:
+            self._enqueue_verdict(enriched)
         if self.netwatch:
             f = enriched.flow
             self.netwatch.learn(f.ip, f.host, f.app)
         for msg in self.insights.on_flow(enriched):
             self.hub.publish(msg)
 
+    # ------------------------------------------------------------------ verdicts
+    def _enqueue_verdict(self, e, force: bool = False) -> bool:
+        if self.verdict_q is None:
+            return False
+        facts = build_facts(e, self.cfg.home_country)
+        key = facts_key(facts)
+        if key in self.legal.cache:
+            self.hub.publish({"type": "verdict", "verdict": self.legal.verdict(e.flow.id, facts).to_dict()})
+            return True
+        if key in self.pending_keys and not force:
+            return True
+        self.pending_keys.add(key)
+        self.verdict_q.put_nowait((e.flow.id, facts, key))
+        return True
+
+    async def _verdict_worker(self) -> None:
+        warned = False
+        while True:
+            flow_id, facts, key = await self.verdict_q.get()
+            try:
+                v = await asyncio.to_thread(self.legal.verdict, flow_id, facts)
+            except Exception as ex:
+                v = None
+                self.hub.error("legal", f"{type(ex).__name__}: {ex}")
+            finally:
+                self.pending_keys.discard(key)
+            if v is None:
+                if not warned:
+                    self.hub.error("llm_unavailable", "Legal engine offline (Ollama not reachable). "
+                                   "Flows and severity continue; verdicts paused.")
+                    warned = True
+                continue
+            warned = False
+            self.hub.publish({"type": "verdict", "verdict": v.to_dict()})
+
+    async def _health_loop(self) -> None:
+        while True:
+            ok = await asyncio.to_thread(self.legal.llm_available)
+            if ok != self.llm_ok:
+                self.llm_ok = ok
+                self.hub.broadcast_status()
+            await asyncio.sleep(15)
+
     # ------------------------------------------------------------------ commands
     async def on_command(self, cmd: dict) -> None:
         t = cmd["type"]
+        if t == "analyze":
+            e = self.recent.get(str(cmd.get("flowId", "")))
+            if e is None:
+                self.hub.error("not_found", f"flow {cmd.get('flowId')!r} is not in memory")
+            elif not self.llm_ok:
+                self.hub.error("llm_unavailable", "Legal engine offline (start Ollama with qwen2.5:7b).")
+            else:
+                self._enqueue_verdict(e, force=True)
+            return
         if t == "start":
             self.capturing = True
             if self.addon:
@@ -119,7 +184,9 @@ class Agent:
                 self.hub.publish(msg)
 
     async def _serve_ws(self):
-        self._bg = [asyncio.create_task(self._score_loop()), asyncio.create_task(self._insight_loop())]
+        self.verdict_q = asyncio.Queue()
+        self._bg = [asyncio.create_task(self._score_loop()), asyncio.create_task(self._insight_loop()),
+                    asyncio.create_task(self._verdict_worker()), asyncio.create_task(self._health_loop())]
         ws = await start_ws(self.hub, self.cfg.ws_port)
         log(f"dashboard socket ws://127.0.0.1:{self.cfg.ws_port}")
         return ws
