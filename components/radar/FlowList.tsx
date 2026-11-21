@@ -79,7 +79,7 @@ export function FlowList() {
   const v = useVirtualizer({ count: visible.length, getScrollElement: () => parentRef.current, estimateSize: () => 44, overscan: 12 });
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-border bg-surface">
+    <div className="flex h-[65vh] min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-border bg-surface lg:h-auto">
       <div className="hidden grid-cols-[4.5rem_minmax(0,9rem)_minmax(0,1.4fr)_minmax(0,1fr)_3rem_minmax(0,9rem)_3.5rem] gap-3 border-b border-border px-3 py-2 text-[11px] tracking-wider text-muted uppercase md:grid">
         <span>Time</span><span>App</span><span>Host</span><span>Company</span><span>Geo</span><span>Data</span><span className="justify-self-end">Sev</span>
       </div>

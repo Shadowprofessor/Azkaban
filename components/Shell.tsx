@@ -49,7 +49,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
           Azkaban
         </Link>
         {showNav && (
-          <nav aria-label="Main" className="order-3 flex w-full gap-1 overflow-x-auto md:order-none md:w-auto">
+          <nav aria-label="Main" className="order-3 flex w-full gap-1 overflow-x-auto [scrollbar-width:none] md:order-none md:w-auto">
             {NAV.map(({ href, label, icon: Icon }) => {
               const active = path.startsWith(href);
               return (

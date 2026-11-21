@@ -27,10 +27,12 @@ export function Guard({ children }: { children: React.ReactNode }) {
   return (
     <>
       {conn === "offline" && (
-        <div role="status" className="flex items-center gap-2 border-b border-danger/40 bg-danger/10 px-4 py-2 text-sm">
-          <PlugZap size={16} className="text-danger" aria-hidden />
-          Agent offline — {hasData ? "showing the last state received. " : ""}reconnecting automatically. Start it with{" "}
-          <code className="font-mono text-xs">python -m azkaban_agent replay azkaban-agent/demo/demo.azk</code>
+        <div role="status" className="flex items-start gap-2 border-b border-danger/40 bg-danger/10 px-4 py-2 text-sm">
+          <PlugZap size={16} className="mt-0.5 shrink-0 text-danger" aria-hidden />
+          <p className="min-w-0">
+            Agent offline — {hasData ? "showing the last state received. " : ""}Reconnecting automatically. Start it with{" "}
+            <code className="font-mono text-xs break-all">python -m azkaban_agent replay azkaban-agent/demo/demo.azk</code>
+          </p>
         </div>
       )}
       {children}
