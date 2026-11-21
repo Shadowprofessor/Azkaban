@@ -10,6 +10,7 @@ const pickerStatus = document.getElementById("picker-status");
 const tabList = document.getElementById("open-tabs");
 let alreadyListed = false;
 let finished = false;
+let auditing = false;
 let listedTabs = [];
 
 function notifyDashboard(result) {
@@ -27,18 +28,17 @@ function webTab(address) {
 function displayTabs(tabs) {
   tabList.replaceChildren();
   for (const tab of tabs) {
-    if (tab.id === dashboardTab || tab.url?.startsWith(chrome.runtime.getURL(""))) continue;
+    if (tab.id === dashboardTab || tab.discarded) continue;
     const url = webTab(tab.url);
-    if (targetSite && url?.hostname.replace(/^www\./, "") !== targetSite) continue;
+    if (!url || (targetSite && url.hostname.replace(/^www\./, "") !== targetSite)) continue;
     const item = document.createElement("li");
     const button = document.createElement("button");
     const title = document.createElement("strong");
     const subtitle = document.createElement("span");
     title.textContent = tab.title || "Untitled tab";
-    subtitle.textContent = url ? url.hostname : "This page cannot be audited";
+    subtitle.textContent = url.hostname;
     button.append(title, subtitle);
-    button.disabled = !url;
-    if (url) button.addEventListener("click", () => auditTab(tab, url));
+    button.addEventListener("click", () => auditTab(tab, url));
     item.append(button);
     tabList.append(item);
   }
@@ -46,6 +46,19 @@ function displayTabs(tabs) {
     "Open an HTTP or HTTPS website in this browser, then choose Refresh tabs.";
   pickerStatus.textContent = tabList.querySelector("button:enabled") ? "Select a tab to start the audit." : absent;
 }
+
+function removeListedTab(tabId) {
+  const remaining = listedTabs.filter((tab) => tab.id !== tabId);
+  if (remaining.length === listedTabs.length) return;
+  listedTabs = remaining;
+  displayTabs(listedTabs);
+}
+
+chrome.tabs.onRemoved.addListener(removeListedTab);
+chrome.tabs.onReplaced.addListener((_added, removed) => removeListedTab(removed));
+chrome.tabs.onUpdated.addListener((tabId, change) => {
+  if (change.discarded || change.url || change.status === "loading") removeListedTab(tabId);
+});
 
 async function loadTabList() {
   listedTabs = await chrome.tabs.query({});
@@ -82,6 +95,8 @@ listButton.addEventListener("click", async () => {
 });
 
 async function auditTab(tab, url) {
+  if (auditing) return;
+  auditing = true;
   const buttons = [...document.querySelectorAll("button:enabled")];
   buttons.forEach((button) => { button.disabled = true; });
   pickerStatus.textContent = `Checking ${url.hostname}…`;
@@ -97,6 +112,12 @@ async function auditTab(tab, url) {
     }
     let snapshot;
     try {
+      const current = await chrome.tabs.get(tab.id).catch(() => null);
+      if (!current || current.discarded || current.url !== tab.url) {
+        removeListedTab(tab.id);
+        pickerStatus.textContent = "That tab closed or changed. Choose another open tab or refresh the list.";
+        return;
+      }
       const [capture] = await chrome.scripting.executeScript({
         target: { tabId: tab.id }, func: inspectPage, args: [tab.url]
       });
@@ -117,6 +138,7 @@ async function auditTab(tab, url) {
   } catch {
     pickerStatus.textContent = "Could not read this tab or return to GhostPrint. Check that both tabs are still open.";
   } finally {
+    auditing = false;
     buttons.forEach((button) => { button.disabled = false; });
   }
 }
