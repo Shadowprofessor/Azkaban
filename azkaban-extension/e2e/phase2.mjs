@@ -1,0 +1,18 @@
+import { launch, startSite } from "./harness.mjs";
+const site = await startSite();
+const { ctx, sw, extId } = await launch();
+const page = await ctx.newPage();
+await page.goto(site.url);
+await page.evaluate(() => window.fireTrackers());
+await page.waitForTimeout(2500);
+const tabId = await sw.evaluate(async () => (await chrome.tabs.query({ url: "http://127.0.0.1/*" }))[0]?.id);
+const badge = await sw.evaluate(async (id) => chrome.action.getBadgeText({ tabId: id }), tabId);
+const flows = await sw.evaluate(async () => (await chrome.storage.session.get("flows")).flows ?? []);
+console.log("badge:", JSON.stringify(badge));
+for (const f of flows.filter((f) => f.tracker)) console.log(" ", f.host, "->", f.tracker.name, "|", f.company);
+const popup = await ctx.newPage();
+await popup.goto(`chrome-extension://${extId}/popup.html?tab=${tabId}`);
+await popup.waitForTimeout(500);
+console.log("popup:", (await popup.locator("main").innerText()).replace(/\n+/g, " | ").slice(0, 300));
+await popup.screenshot({ path: "e2e/popup.png" });
+await ctx.close(); site.close();

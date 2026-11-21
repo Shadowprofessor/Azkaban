@@ -1,0 +1,5 @@
+body { width: 360px; }
+main { padding: 12px; display: grid; gap: 10px; }
+header .logo { width: 26px; height: 26px; border-radius: 6px; display: grid; place-items: center; background: color-mix(in srgb, var(--hero) 25%, transparent); color: var(--hero); font-weight: 700; }
+.grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; text-align: center; }
+.bar { height: 4px; border-radius: 4px; background: var(--danger); opacity: .8; }

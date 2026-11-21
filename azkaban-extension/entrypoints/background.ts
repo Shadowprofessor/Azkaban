@@ -2,6 +2,8 @@ import { defineBackground } from "wxt/utils/define-background";
 import { browser } from "wxt/browser";
 import { hostOf, isWebUrl, registrable } from "../lib/domain";
 import { appendFlow, type ExtFlow } from "../lib/store";
+import { lookup } from "../lib/trackers";
+import { bumpTab, resetTab } from "../lib/tabs";
 
 // Per-request scratch (requestId -> partial). Requests finish within seconds while the SW is
 // awake handling their events; nothing here needs to survive a SW restart.
@@ -34,6 +36,7 @@ export default defineBackground({
       if (!p || !isWebUrl(d.url)) return;
       const url = new URL(d.url);
       const site = registrable(hostOf(d.initiator) || url.hostname);
+      const { tracker, company } = lookup(url.hostname);
       const len = Number(d.responseHeaders?.find((h) => h.name.toLowerCase() === "content-length")?.value ?? 0) || 0;
       const flow: ExtFlow = {
         id: `ext-${d.requestId}-${p.ts}`,
@@ -44,8 +47,8 @@ export default defineBackground({
         path: url.pathname,
         ip: d.ip ?? "",
         country: "ZZ", // no GeoIP in the browser; the agent fills this when bridged
-        company: "",
-        tracker: null,
+        company,
+        tracker,
         decrypted: true, // seen before TLS: pinning is irrelevant here
         pii: [],
         severity: 0,
@@ -56,7 +59,23 @@ export default defineBackground({
         initiator: site,
       };
       appendFlow(flow);
+      if (d.tabId >= 0) {
+        void bumpTab(d.tabId, site, (t) => {
+          t.requests++;
+          if (tracker && flow.thirdParty) {
+            t.trackers++;
+            const c = company || tracker.name;
+            t.companies[c] = (t.companies[c] ?? 0) + 1;
+          }
+        });
+      }
     };
+
+    // New top-level navigation: start the tab's counters fresh.
+    browser.tabs.onUpdated.addListener((tabId, info) => {
+      if (info.url) void resetTab(tabId);
+    });
+    browser.tabs.onRemoved.addListener((tabId) => void resetTab(tabId));
 
     browser.webRequest.onCompleted.addListener(finish, { urls: ["<all_urls>"] }, ["responseHeaders"]);
     browser.webRequest.onErrorOccurred.addListener((d) => finish({ ...d, responseHeaders: [] }), { urls: ["<all_urls>"] });
