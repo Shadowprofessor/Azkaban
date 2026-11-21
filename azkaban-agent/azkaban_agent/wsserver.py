@@ -33,6 +33,7 @@ class Hub:
         self.on_command = on_command
         self.clients: dict[ServerConnection, asyncio.Queue] = {}
         self.history: deque[str] = deque(maxlen=HISTORY)
+        self.last_score: str | None = None
 
     # --------------------------------------------------------------- publish
     def publish(self, msg: dict, keep: bool = True) -> None:
@@ -40,6 +41,8 @@ class Hub:
         data = json.dumps(msg, separators=(",", ":"))
         if keep and msg.get("type") in ("flow", "verdict"):
             self.history.append(data)
+        if msg.get("type") == "score":
+            self.last_score = data
         for q in self.clients.values():
             if q.full():
                 try:
@@ -70,6 +73,8 @@ class Hub:
         await ws.send(json.dumps(self.status_fn()))
         for data in list(self.history):
             q.put_nowait(data) if not q.full() else None
+        if self.last_score:
+            q.put_nowait(self.last_score)
         self.clients[ws] = q
         sender = asyncio.create_task(self._sender(ws, q))
         try:

@@ -7,6 +7,7 @@ import sys
 from . import __version__
 from .config import Config
 from .pipeline import Pipeline
+from .score import ExposureScore
 from .session import Recorder, read_header, replay
 from .wsserver import Hub, start_ws
 
@@ -22,6 +23,7 @@ class Agent:
         self.loop: asyncio.AbstractEventLoop | None = None
         self.hub = Hub(self.status, self.on_command)
         self.pipeline = Pipeline(cfg)
+        self.exposure = ExposureScore()
         self.recorder = Recorder(record) if record else None
         self.addon = None
         if mode == "live":
@@ -38,7 +40,7 @@ class Agent:
             "mode": self.mode if self.capturing else "idle",
             "proxy": f"127.0.0.1:{self.cfg.proxy_port}" if self.mode == "live" else "",
             "flows": self.flow_count,
-            "engines": {"llm": False, "rag": False, "model": False, "geo": self.pipeline.geo.available},
+            "engines": {"llm": False, "rag": False, "model": self.pipeline.severity.available, "geo": self.pipeline.geo.available},
             "version": __version__,
         }
 
@@ -60,6 +62,7 @@ class Agent:
             self.hub.error("pipeline", f"{type(e).__name__}: {e}")
             return
         self.flow_count += 1
+        self.exposure.add(self.pipeline.fact(enriched))
         self.hub.publish({"type": "flow", "flow": enriched.flow.to_dict()})
 
     # ------------------------------------------------------------------ commands
@@ -79,7 +82,17 @@ class Agent:
         self.hub.broadcast_status()
 
     # ------------------------------------------------------------------ run
+    async def _score_loop(self) -> None:
+        while True:
+            await asyncio.sleep(1.0)
+            if self.exposure.dirty:
+                try:
+                    self.hub.publish(self.exposure.message(), keep=False)
+                except Exception as e:
+                    self.hub.error("score", str(e))
+
     async def _serve_ws(self):
+        self._bg = [asyncio.create_task(self._score_loop())]
         ws = await start_ws(self.hub, self.cfg.ws_port)
         log(f"dashboard socket ws://127.0.0.1:{self.cfg.ws_port}")
         return ws

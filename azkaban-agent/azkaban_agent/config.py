@@ -37,6 +37,7 @@ class Config:
     nim_model: str = ""
     nim_key: str = ""
     geoip_db: str = ""
+    home_country: str = "IN"
     known_emails: list[str] = field(default_factory=list)
     known_phones: list[str] = field(default_factory=list)
     known_adids: list[str] = field(default_factory=list)
@@ -55,6 +56,7 @@ class Config:
             nim_model=e("AZK_NIM_MODEL", "nvidia/llama-3.1-nemotron-70b-instruct"),
             nim_key=e("NVIDIA_API_KEY", ""),
             geoip_db=e("AZK_GEOIP_DB", str(DATA_DIR / "GeoLite2-Country.mmdb")),
+            home_country=e("AZK_HOME_COUNTRY", "IN").upper(),
             known_emails=_csv("AZK_KNOWN_EMAILS"),
             known_phones=_csv("AZK_KNOWN_PHONES"),
             known_adids=_csv("AZK_KNOWN_ADIDS"),

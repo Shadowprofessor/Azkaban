@@ -1,0 +1,69 @@
+{
+  "features": [
+    "pii_type_count",
+    "pii_sensitivity_max",
+    "is_tracker",
+    "is_cross_border",
+    "bytes",
+    "consent_present",
+    "app_category_mismatch",
+    "adid_reuse_count",
+    "decrypted",
+    "hashed_pii_hit",
+    "time_since_interaction"
+  ],
+  "importances": [
+    {
+      "feature": "pii_type_count",
+      "gain": 0.6238
+    },
+    {
+      "feature": "pii_sensitivity_max",
+      "gain": 0.1441
+    },
+    {
+      "feature": "is_tracker",
+      "gain": 0.1081
+    },
+    {
+      "feature": "app_category_mismatch",
+      "gain": 0.0468
+    },
+    {
+      "feature": "decrypted",
+      "gain": 0.0422
+    },
+    {
+      "feature": "adid_reuse_count",
+      "gain": 0.0182
+    },
+    {
+      "feature": "is_cross_border",
+      "gain": 0.0086
+    },
+    {
+      "feature": "hashed_pii_hit",
+      "gain": 0.0051
+    },
+    {
+      "feature": "consent_present",
+      "gain": 0.0024
+    },
+    {
+      "feature": "bytes",
+      "gain": 0.0004
+    },
+    {
+      "feature": "time_since_interaction",
+      "gain": 0.0004
+    }
+  ],
+  "mae": 3.053,
+  "r2": 0.9857,
+  "n_train": 51000,
+  "n_test": 9000,
+  "device": "cpu (no CUDA device visible)",
+  "train_seconds": 3.66,
+  "onnx_parity_max_abs_err": 0.0001,
+  "labels": "weak supervision: expert rubric + N(0,4) noise"
+}

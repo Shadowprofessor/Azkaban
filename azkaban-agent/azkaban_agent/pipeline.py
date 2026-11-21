@@ -10,6 +10,8 @@ from .fields import record_fields
 from .geo import Geo
 from .identity import Correlator, IdentityTable
 from .schema import Flow
+from .score import Fact
+from .severity import SeverityModel
 from .trackers import TrackerDB
 
 HASH_ALGOS = ("md5", "sha1", "sha256")
@@ -23,7 +25,8 @@ class Enriched:
     hashed_hits: int = 0
     encoded_hits: int = 0
     adid_reuse: int = 0          # apps that sent the same ad ID to this flow's company
-    tsi: float = 0.0             # seconds since last user interaction (Phase 7)
+    tsi: float = 0.0             # seconds since last user interaction
+    features: list = field(default_factory=list)
 
 
 def _family(via: str) -> str:
@@ -51,6 +54,7 @@ class Pipeline:
         self.identity = IdentityTable()
         self.identity.add_many(cfg.known_emails, cfg.known_phones, cfg.known_adids)
         self.correlator = Correlator()
+        self.severity = SeverityModel()
 
     def scan_payload(self, raw: dict) -> tuple[list[pii.Finding], object]:
         pairs = record_fields(raw)
@@ -80,7 +84,7 @@ class Pipeline:
         flow.tracker, flow.company = tracker, company
         flow.country = self.geo.country(flow.ip) if flow.ip else "ZZ"
 
-        e = Enriched(flow=flow, raw=raw)
+        e = Enriched(flow=flow, raw=raw, tsi=float(raw.get("tsi", 0.0) or 0.0))
         if flow.decrypted:
             e.findings, flow.tcf = self.scan_payload(raw)
 
@@ -94,4 +98,13 @@ class Pipeline:
                 if same_co >= 2:
                     f.redacted = f"{f.redacted} · same ID from {same_co} apps → {company or flow.host}"
         flow.pii = [f.hit() for f in e.findings]
+        e.features = self.severity.features(e, self.cfg.home_country)
+        flow.severity = self.severity.score(e.features)
         return e
+
+    def fact(self, e: Enriched) -> Fact:
+        f = e.flow
+        return Fact(host=f.host, company=f.company, tracker=f.tracker is not None,
+                    pii=frozenset(h.type for h in f.pii),
+                    cross_border=f.country not in ("ZZ", "", self.cfg.home_country),
+                    consent=bool(f.tcf and f.tcf.purposes), hashed=e.hashed_hits)

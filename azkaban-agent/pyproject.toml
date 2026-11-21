@@ -14,11 +14,12 @@ dependencies = [
   "numpy>=1.26",
   "requests>=2.31",
   "reportlab>=4",
+  "onnxruntime>=1.18",
+  "maxminddb>=2.5",
 ]
 
 [project.optional-dependencies]
-ml = ["xgboost>=2", "scikit-learn>=1.4", "onnxruntime>=1.18", "onnxmltools>=1.12", "onnx>=1.16"]
-geo = ["maxminddb>=2.5"]
+train = ["xgboost>=2", "scikit-learn>=1.4", "onnxmltools>=1.12", "onnx>=1.16"]
 dev = ["pytest>=8"]
 
 [project.scripts]
