@@ -71,9 +71,11 @@ def _cfg(args) -> Config:
 
 
 async def _ask_export(port: int) -> int:
-    from websockets.asyncio.client import connect
+    from websockets.asyncio.client import connect  # egress-ok: URL comes from net.local_ws_url (loopback)
+
+    from .net import local_ws_url
     try:
-        async with connect(f"ws://127.0.0.1:{port}") as ws:
+        async with connect(local_ws_url(port)) as ws:
             await ws.send(json.dumps({"type": "export_evidence"}))
             while True:
                 msg = json.loads(await asyncio.wait_for(ws.recv(), 60))

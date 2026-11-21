@@ -16,10 +16,9 @@ import re
 import sys
 from pathlib import Path
 
-import requests
-
 from .config import REPO_ROOT, Config
 from .features import UNEXPECTED, app_category
+from .net import http_get, http_post
 from .schema import Citation, Verdict
 
 SYSTEM = (
@@ -103,7 +102,7 @@ class LegalEngine:
         if self.cfg.nim_enabled:
             return bool(self.cfg.nim_key)
         try:
-            r = requests.get(f"{self.cfg.ollama_url}/api/tags", timeout=1.5)
+            r = http_get(f"{self.cfg.ollama_url}/api/tags", cfg=self.cfg, timeout=1.5)
             names = [m.get("name", "") for m in r.json().get("models", [])]
             return r.ok and any(n.startswith(self.cfg.ollama_model.split(":")[0]) for n in names)
         except Exception:
@@ -125,7 +124,7 @@ class LegalEngine:
 
     # ------------------------------------------------------------- llm
     def _ollama(self, messages: list[dict]) -> str:
-        r = requests.post(f"{self.cfg.ollama_url}/api/chat", timeout=120, json={
+        r = http_post(f"{self.cfg.ollama_url}/api/chat", cfg=self.cfg, timeout=120, json={
             "model": self.cfg.ollama_model, "messages": messages, "stream": False, "format": "json",
             "options": {"temperature": 0, "num_ctx": 8192},
         })
@@ -137,7 +136,7 @@ class LegalEngine:
         # Transparency: print EXACTLY what leaves the machine.
         print("[azkaban] NIM request payload (aggregated metadata + statute text only):\n"
               + json.dumps(payload, indent=2), file=sys.stderr, flush=True)
-        r = requests.post(self.cfg.nim_url, timeout=120, json=payload,
+        r = http_post(self.cfg.nim_url, cfg=self.cfg, timeout=120, json=payload,
                           headers={"Authorization": f"Bearer {self.cfg.nim_key}"})
         r.raise_for_status()
         return r.json()["choices"][0]["message"]["content"]

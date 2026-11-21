@@ -61,13 +61,13 @@ class Geo:
 
 
 def fetch_dbip(dest: Path = DBIP_PATH) -> Path:
-    import requests
+    from .net import http_get
     today = date.today()
     tried = []
     for y, m in ((today.year, today.month), (today.year - (today.month == 1), (today.month - 2) % 12 + 1)):
         url = DBIP_URL.format(ym=f"{y}-{m:02d}")
         tried.append(url)
-        r = requests.get(url, timeout=120, stream=True)
+        r = http_get(url, allow_setup=True, timeout=120, stream=True)  # setup only, no user data
         if r.status_code == 200:
             tmp = dest.with_suffix(".gz")
             with open(tmp, "wb") as f:
