@@ -12,6 +12,7 @@ import { classify, insight as clfInsight } from "../lib/clf";
 import type { PageObs } from "../lib/trackerFeatures";
 import { uidInQuery, webRequestType } from "../lib/trackerFeatures";
 import { setSettings } from "../lib/store";
+import { fingerprintToast, shouldSend, thirdPartyToast, unknownTrackerToast, type Toast } from "../lib/alerts";
 
 // Per-request scratch (requestId -> partial). Requests finish within seconds while the SW is
 // awake handling their events; nothing here needs to survive a SW restart.
@@ -75,6 +76,23 @@ async function recordSentIds(tabId: number, url: URL) {
   }
 }
 
+// Toasts: one per subject per page, capped per page, off entirely when muted.
+// The dedupe list lives in storage.session because the service worker is ephemeral.
+async function toast(tabId: number, t: Toast | null): Promise<void> {
+  if (!t || tabId < 0) return;
+  try {
+    if ((await getSettings()).muted) return;
+    const key = `toast:${tabId}`;
+    const sent = ((await browser.storage.session.get(key))[key] as string[] | undefined) ?? [];
+    if (!shouldSend(sent, t.key)) return;
+    await browser.storage.session.set({ [key]: [...sent, t.key] });
+    // The content script may not be injected (chrome:// pages, pre-install tabs); ignore.
+    await browser.tabs.sendMessage(tabId, { type: "azkaban-toast", message: t.message, severity: t.severity }, { frameId: 0 }).catch(() => undefined);
+  } catch {
+    /* an alert must never break request handling */
+  }
+}
+
 async function runAudit(tabId: number) {
   try {
     const tab = await browser.tabs.get(tabId);
@@ -103,6 +121,7 @@ async function runAudit(tabId: number) {
 
 type PatronusCmd =
   | { type: "patronus"; action: "toggle"; on: boolean }
+  | { type: "patronus"; action: "alerts"; muted: boolean }
   | { type: "patronus"; action: "block"; domains: string[] }
   | { type: "patronus"; action: "unblock"; domains: string[] }
   | { type: "patronus"; action: "pause"; site: string }
@@ -113,6 +132,7 @@ const DOMAIN = /^[a-z0-9.-]+\.[a-z]{2,}$/i;
 async function patronus(c: PatronusCmd) {
   const s = await getSettings();
   if (c.action === "toggle") await setSettings({ blockTrackers: !!c.on });
+  if (c.action === "alerts") return setSettings({ muted: !!c.muted }).then(() => 0);
   if (c.action === "block") await setSettings({ customBlocks: [...new Set([...s.customBlocks, ...c.domains.filter((d) => DOMAIN.test(d))])] });
   if (c.action === "unblock") await setSettings({ customBlocks: s.customBlocks.filter((d) => !c.domains.includes(d)) });
   if (c.action === "pause" && (DOMAIN.test(c.site) || /^\d{1,3}(\.\d{1,3}){3}$/.test(c.site))) await setSettings({ allowlist: [...new Set([...s.allowlist, c.site])] });
@@ -148,6 +168,7 @@ export default defineBackground({
       ["requestHeaders", "extraHeaders"],
     );
 
+    let thirdPartyCount = 0;
     const finish = (d: { requestId: string; url: string; method: string; initiator?: string; ip?: string; tabId: number; type?: string; responseHeaders?: { name: string; value?: string }[]; error?: string }) => {
       const p = pending.get(d.requestId);
       pending.delete(d.requestId);
@@ -186,7 +207,9 @@ export default defineBackground({
             type: webRequestType(d.type ?? "other"), bytes: flow.bytes, cookies: !!p.cookie, uidQs: uidInQuery(url),
             https: url.protocol === "https:", refererLeaked: !!ref && (ref.includes("?") || ref.replace(/\/+$/, "").split("/").length > 3),
           }).then((msg) => {
-            if (msg) void bumpTab(d.tabId, site, (t) => (t.unknown = [...(t.unknown ?? []), msg.data.domain].slice(-20)));
+            if (!msg) return;
+            void bumpTab(d.tabId, site, (t) => (t.unknown = [...(t.unknown ?? []), msg.data.domain].slice(-20)));
+            void toast(d.tabId, unknownTrackerToast(msg.data.domain, msg.data.confidence));
           }),
         ).catch(() => undefined);
       }
@@ -197,12 +220,15 @@ export default defineBackground({
           if (flow.thirdParty) {
             const dom = registrable(url.hostname);
             if (!t.domains?.includes(dom)) t.domains = [...(t.domains ?? []), dom].slice(-100);
+            thirdPartyCount = t.domains?.length ?? 0;
           }
           if (tracker && flow.thirdParty) {
             t.trackers++;
             const c = company || tracker.name;
             t.companies[c] = (t.companies[c] ?? 0) + 1;
           }
+        }).then(() => {
+          if (thirdPartyCount) void toast(d.tabId, thirdPartyToast(thirdPartyCount));
         });
       }
     };
@@ -211,6 +237,7 @@ export default defineBackground({
     browser.tabs.onUpdated.addListener((tabId, info) => {
       if (info.url) {
         void resetTab(tabId);
+        void browser.storage.session.remove(`toast:${tabId}`); // new page, alerts may fire again
         void browser.storage.session.set({ [`nav:${tabId}`]: Date.now() }); // new page for the classifier
       }
     });
@@ -248,11 +275,18 @@ export default defineBackground({
         return undefined;
       }
       if (m.type === "fingerprint") {
+        const surfaces = Number(m.surfaces) || 0;
         void bumpTab(tabId, site, (t) => {
-          t.fingerprint = Math.max(t.fingerprint, Number(m.surfaces) || 0);
+          t.fingerprint = Math.max(t.fingerprint, surfaces);
           if (m.flagged) t.fpFlagged = true;
           if (m.flagged && m.frame && !t.fpFrames?.includes(m.frame)) t.fpFrames = [...(t.fpFrames ?? []), m.frame].slice(0, 10);
         });
+        if (m.flagged) {
+          // "Blocked" only if Patronus is actually on for this site.
+          void getSettings().then((s2) =>
+            toast(tabId, fingerprintToast(s2.blockTrackers && !s2.allowlist.includes(site), surfaces)),
+          );
+        }
       }
       return undefined;
     });

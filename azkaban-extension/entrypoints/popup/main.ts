@@ -80,6 +80,10 @@ function render(site: string, t: TabStats | null, a: SiteAudit | null, s: Settin
       ${a.supercookies.length ? `<div style="color:var(--danger)" data-testid="supercookie">Supercookie: the same ID is kept in ${esc(a.supercookies[0]!.places.join(" + "))} (survives cookie clearing)</div>` : ""}
       ${a.synced.length ? `<div style="color:var(--warning)" data-testid="synced">ID syncing: one ID shared across ${esc(a.synced[0]!.domains.join(", "))}</div>` : ""}
     </section>` : ""}
+    <section class="card row between" aria-label="Alerts" data-testid="alerts">
+      <div><strong>On-page alerts</strong><div class="muted" style="font-size:11px">${s.muted ? "off" : "warn me about serious leaks as they happen"}</div></div>
+      <button data-act="alerts" class="${s.muted ? "primary" : ""}" data-testid="alerts-toggle">${s.muted ? "Turn on" : "Turn off"}</button>
+    </section>
     <section class="card" aria-label="Companies">
       <div class="muted" style="margin-bottom:6px">Companies receiving data from this page</div>
       ${companies.length ? `<ul>${companies.map(([c, n]) => `<li style="margin:4px 0"><div class="row between"><span>${esc(c)}</span><span class="row"><span class="mono muted">${n}</span>${byCompany.get(c) ? (byCompany.get(c)!.every((d) => s.customBlocks.includes(d)) ? `<button data-act="unblock" data-domains="${esc(byCompany.get(c)!.join(","))}">Unblock</button>` : `<button data-act="block" data-domains="${esc(byCompany.get(c)!.join(","))}">Block</button>`) : ""}</span></div><div class="bar" style="width:${(n / max) * 100}%"></div></li>`).join("")}</ul>` : `<p class="muted">No trackers seen on this page yet.</p>`}
@@ -109,6 +113,7 @@ app.addEventListener("click", async (ev) => {
     act === "toggle" ? { action: "toggle", on: !s.blockTrackers }
     : act === "block" ? { action: "block", domains: (btn.dataset.domains ?? "").split(",") }
     : act === "unblock" ? { action: "unblock", domains: (btn.dataset.domains ?? "").split(",") }
+    : act === "alerts" ? { action: "alerts", muted: !s.muted }
     : act === "pause" ? { action: "pause", site: currentSite }
     : { action: "resume", site: currentSite };
   btn.disabled = true;

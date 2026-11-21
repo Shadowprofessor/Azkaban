@@ -63,7 +63,7 @@ export function bumpTab(tabId: number, site: string, fn: (t: TabStats) => void):
 }
 
 export async function resetTab(tabId: number): Promise<void> {
-  await browser.storage.session.remove([key(tabId), `audit:${tabId}`, `sent:${tabId}`]);
+  await browser.storage.session.remove([key(tabId), `audit:${tabId}`, `sent:${tabId}`, `toast:${tabId}`]);
   await browser.action.setBadgeText({ tabId, text: "" }).catch(() => undefined);
 }
 
