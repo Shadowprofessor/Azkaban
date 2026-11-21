@@ -4,6 +4,7 @@ from secrets import token_urlsafe
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
+from .analyst import analyze, is_personal_question
 from .cases import BY_CASE
 from .model import rank
 from .speech import Speech
@@ -91,9 +92,9 @@ def dashboard(report, port, voice_model=None):
             try:
                 if self.path == "/api/live/event":
                     body = json.loads(self.read_body(4096))
-                    if not isinstance(body, dict) or set(body) - {"site", "links"} or "site" not in body:
-                        raise ValueError("Expected a website hostname and optional public links.")
-                    activity.add(body["site"], body.get("links"))
+                    if not isinstance(body, dict) or set(body) - {"site", "links", "permissions"} or "site" not in body:
+                        raise ValueError("Expected a hostname, with optional public links and permission states.")
+                    activity.add(body["site"], body.get("links"), body.get("permissions"))
                     self.send_json(200, {"recorded": True})
                 elif self.path == "/api/live/clear":
                     activity.clear()
@@ -103,9 +104,14 @@ def dashboard(report, port, voice_model=None):
                     prompt = body.get("prompt") if isinstance(body, dict) else None
                     if not isinstance(prompt, str) or len(prompt) > 1500:
                         raise ValueError("Enter a prompt of up to 1,500 characters.")
-                    site = hostname(body["site"]) if body.get("site") else ""
-                    self.send_json(200, answer(prompt, site, activity.links(site),
-                                               search_web=body.get("search_web") is True))
+                    mode = body.get("mode")
+                    if mode == "analyst" or is_personal_question(prompt):
+                        analysis = analyze(prompt, report, activity.snapshot(), activity.permissions())
+                        self.send_json(200, {"analysis": analysis})
+                    else:
+                        site = hostname(body["site"]) if body.get("site") else ""
+                        self.send_json(200, answer(prompt, site, activity.links(site),
+                                                   search_web=body.get("search_web") is True))
                 elif self.path == "/api/voice":
                     if self.headers.get_content_type() not in {"audio/webm", "audio/ogg", "audio/mp4", "audio/wav"}:
                         raise ValueError("Unsupported recording format.")

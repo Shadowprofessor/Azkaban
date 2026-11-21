@@ -37,6 +37,12 @@
     <section>
       <h2>Ask about privacy</h2>
       <form id="ask-form">
+        <label for="ask-mode">Answer mode</label>
+        <select id="ask-mode">
+          <option value="auto">Automatic</option>
+          <option value="analyst">Analyze my imported data</option>
+        </select>
+        <p id="analyst-note" class="shortcut" hidden>PrivacyGPT uses local archive and browser evidence for this mode.</p>
         <label for="ask-site">Website hostname <span class="muted">(optional)</span></label>
         <input type="text" id="ask-site" placeholder="example.com" maxlength="253" autocomplete="off">
         <label for="ask-prompt">Your prompt</label>
@@ -46,7 +52,7 @@
           <button id="send-prompt" type="submit" aria-controls="ask-answer">Send</button>
         </div>
         <p id="prompt-shortcut" class="shortcut">Enter to send · Shift+Enter for a new line</p>
-        <div class="web-search-option">
+        <div class="web-search-option" id="web-search-option">
           <label><input id="search-web" type="checkbox" aria-describedby="web-search-note">
             Search the web if there’s no local answer</label>
           <p id="web-search-note" class="shortcut">The search provider receives your question or its English voice translation. Use public topics.</p>

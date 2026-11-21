@@ -53,7 +53,7 @@ def evaluate(model_server=None):
         report = audit([(demo, None)])
     expected_findings = {
         ("Google", "location"): (12, "google-timeline"),
-        ("Google", "activity"): (7, "google-activity"),
+        ("Google", "activity"): (10, "google-activity"),
         ("Google", "contacts"): (4, "google-contacts"),
         ("Instagram", "connections"): (8, "instagram-network"),
         ("Instagram", "contacts"): (3, "instagram-contacts"),

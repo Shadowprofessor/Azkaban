@@ -22,13 +22,33 @@ python -m ghostprint live
 2. Enable Developer mode and choose **Load unpacked**. Select the repository's `browser-companion` folder.
 3. In [GhostPrint](http://127.0.0.1:8765), open **Pair browser companion** and copy the code. Paste it into the extension popup, choose **Start recording**, and accept the browser's optional tab permission.
 4. Visit a few websites. The dashboard shows foreground hostnames and recent counts. Choose **Pause recording** in the extension or **Clear activity** in the dashboard at any time.
-5. To find site-specific evidence, use **Find privacy links on this page** in the extension. In GhostPrint, click the site's hostname to see any same-site privacy links found and general steps. You can also type a hostname without installing the extension and ask about permissions, cookies, or account deletion.
+5. To find site-specific evidence, use **Check privacy links and permissions** in the extension. In GhostPrint, click the site's hostname to see any same-site privacy links found and general steps. PrivacyGPT can also report aggregate browser permission grants from explicit checks.
 
 Type or dictate a privacy prompt, then click **Send** or press Enter. The **Answer** panel shows the recommended steps and their sources. Press Shift+Enter to add a line to the prompt.
 
 Turn on **Search the web if there’s no local answer** to look up public questions when the local guides have no match. This preference lasts for the browser tab. The search provider receives the question or the English lookup from dictation. The selected website, archive report, recorded browsing activity and microphone audio stay local. GhostPrint skips web lookup for prompts with patterns such as email addresses, credentials or full URLs.
 
 The web fallback searches English Wikipedia by default and displays linked excerpts. To use general web search, set `$env:BRAVE_SEARCH_API_KEY = '<your Brave Search API key>'` before starting GhostPrint. The app uses that key for [Brave Search](https://api-dashboard.search.brave.com/api-reference/web/search/get). Restart the local dashboard after changing the key.
+
+## Ask PrivacyGPT about your data
+
+Start the demo or run `audit … --serve` with your archives. In **Ask about privacy**, choose **Analyze my imported data**, or leave the mode on **Automatic** for clearly personal questions. Try “Which services know my location?”, “What was I interested in during 2025?”, or “What could a data broker infer?”
+
+PrivacyGPT answers from file-level counts and evidence references, shows confidence and privacy risk per finding, and ranks actions by risk and privacy benefit. It correlates supported topic labels across Google Search, YouTube, Spotify and other sources that provide readable labels. Timeline questions use parsed timestamps. Year counts can reflect incomplete coverage, and activity timestamps cannot establish when you sleep. Personal questions use the local analysis path even when web lookup is enabled.
+
+| Source | Additional supported evidence |
+| --- | --- |
+| Google Takeout and YouTube | Google search and YouTube history JSON, labels and timestamps when present, coordinate presence, and explicit city and home/work labels in supported Timeline records |
+| Facebook | Selected posts, contacts, search, messages, login, and Off-Meta activity JSON records |
+| LinkedIn | Positions, education, connections, contacts, and selected message CSV exports |
+| Twitter/X | Recognized JSON or `window.YTD` archive members |
+| TikTok | Recognized watch-history lists in JSON |
+| Discord | Recognized messages and account-event JSON files |
+| Amazon | Order history CSV and recognized JSON order lists |
+| Browser history | Chrome Takeout history JSON and selected CSV or JSON history exports |
+| Chrome/Edge companion | Hostname-free activity totals and aggregate grants from explicit site permission checks |
+
+Export layouts vary. Where files have generic names, import one service at a time with the matching `--platform` hint. The local analyzer uses a fixed set of non-sensitive topic categories. It does not assign a person's age, income, current occupation, education level, sleep schedule, or exact home or workplace address from ambiguous signals. Archive presence does not establish third-party recipients, current account settings, or retention beyond the export.
 
 Live recording covers ordinary browser tabs with public-style HTTP(S) hostnames in paired Chrome or Edge sessions. Browser-internal pages, incognito, other desktop apps, full navigation paths, queries, page contents, form input, and credentials are outside that recording scope. The optional link scan reads matching same-origin links when explicitly requested. Activity is kept in the dashboard's memory and expires when it exits. Copy a new code after restarting.
 

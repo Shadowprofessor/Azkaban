@@ -39,6 +39,9 @@ textarea { display: block; width: 100%; resize: vertical; }
 .web-search-option input { accent-color: var(--mint); }
 .answer-panel { margin: 1.15rem 0 0; padding: .9rem 0 0; border-top: 1px solid var(--edge); }
 .answer-panel h4 { font-size: 1.05rem; margin: 0; }
+.answer-panel h5 { font-size: 1rem; margin: 0; }
+.analysis-answer { color: var(--ink); font-size: 1.1rem; }
+#ask-result > h4 { margin: 1rem 0 .45rem; }
 .controls, .site-list { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; margin: .65rem 0; }
 .controls > label, .controls select { min-width: 0; max-width: 100%; }
 audio { max-width: 100%; }

@@ -6,18 +6,20 @@ import os
 import re
 import zipfile
 from collections import Counter
-from datetime import UTC, datetime
 from html.parser import HTMLParser
 from pathlib import Path
 
-from .retrieval import PLATFORMS, retrieve
+from .archive_signals import ADDITIONAL_FIELDS, KNOWN_PLATFORMS, archive_hint, classify_extra, evidence_summary, product_and_kind
+from .retrieval import retrieve
 
 
 MAX_FILE = 64 * 1024 * 1024
 MAX_TOTAL = 384 * 1024 * 1024
 MAX_FILES = 30_000
+MAX_ANALYST_SOURCES = 2_000
 WEIGHTS = {"location": 85, "security": 76, "contacts": 72, "messages": 67,
-           "connections": 41, "activity": 34, "interests": 30}
+           "connections": 41, "activity": 34, "interests": 30, "sharing": 64,
+           "shopping": 42, "work": 40, "education": 36}
 REASONS = {
     "location": "Location records can reveal where activity took place.",
     "security": "Session metadata can reveal devices and networks used to access an account.",
@@ -26,6 +28,10 @@ REASONS = {
     "connections": "Follower and following records expose parts of a social graph.",
     "activity": "Timestamped activity can reveal repeated habits.",
     "interests": "Activity or advertising labels can reveal preferences.",
+    "sharing": "Off-platform activity records can link actions on other services to an account.",
+    "shopping": "Purchase history can reveal spending patterns and interests.",
+    "work": "Profile entries can reveal employment history.",
+    "education": "Profile entries can reveal educational history.",
 }
 
 
@@ -42,6 +48,11 @@ class TakeoutActivity(HTMLParser):
 
 
 def classify(name, platform=None):
+    additional = classify_extra(name, platform)
+    if additional and not (platform is None and additional[0] == "YouTube" and
+                           ("takeout/" in name.lower().replace("\\", "/") or
+                            "my activity/" in name.lower().replace("\\", "/"))):
+        return additional[:2]
     path = name.lower().replace("\\", "/")
     stem, suffix = os.path.splitext(path.rsplit("/", 1)[-1])
     if platform in (None, "Google"):
@@ -94,35 +105,36 @@ def records_in(value, fields):
     return []
 
 
-def utc_hour(row):
-    for key in ("ts", "time", "endTime", "timestamp", "creation_timestamp", "timestamp_ms",
-                "timestampMs", "startTime"):
-        value = row.get(key)
-        try:
-            if isinstance(value, (int, float)) or isinstance(value, str) and value.isdecimal():
-                seconds = int(value)
-                return datetime.fromtimestamp(seconds / 1000 if seconds > 10**11 else seconds, UTC).hour
-            if isinstance(value, str):
-                moment = datetime.fromisoformat(value.replace("Z", "+00:00"))
-                # Spotify legacy endTime is UTC. Other timezone-less values are ambiguous.
-                if moment.tzinfo is None and key != "endTime":
-                    continue
-                return moment.astimezone(UTC).hour if moment.tzinfo else moment.hour
-        except (ValueError, OverflowError, OSError):
-            continue
-    return None
+def csv_rows(text, platform):
+    reader = csv.reader(io.StringIO(text))
+    for index, header in enumerate(reader):
+        columns = {value.strip().lower() for value in header}
+        if platform in {"Google", "Spotify", "Instagram"} or columns & {
+            "first name", "last name", "e-mail address", "email address", "company name", "title",
+            "school name", "degree name", "order date", "product name", "url", "visit time",
+            "timestamp", "date", "conversation id",
+        }:
+            return [dict(zip(header, row)) for row in reader if any(cell.strip() for cell in row)]
+        if index >= 12:
+            break
+    return []
 
 
 def summarize(text, name, platform, category):
     if name.lower().endswith(".vcf"):
-        return len(re.findall(r"^BEGIN:VCARD\s*$", text, re.I | re.M)), [], Counter(), Counter()
+        return len(re.findall(r"^BEGIN:VCARD\s*$", text, re.I | re.M)), [], Counter(), evidence_summary([], category)
     if name.lower().endswith(".csv"):
-        count = sum(any(cell.strip() for cell in row) for row in csv.reader(io.StringIO(text)))
-        return max(0, count - 1), [], Counter(), Counter()
+        rows = csv_rows(text, platform)
+        return len(rows), [], Counter(), evidence_summary(rows, category)
     if name.lower().endswith(".html"):
         parser = TakeoutActivity()
         parser.feed(text)
-        return parser.count, [], Counter(), Counter()
+        return parser.count, [], Counter(), evidence_summary([], category)
+    if platform == "Twitter/X" and name.lower().endswith(".js"):
+        prefix = re.match(r"\s*window\.YTD\.[\w_]+\.part\d+\s*=\s*", text)
+        if not prefix:
+            return 0, [], Counter(), evidence_summary([], category)
+        text = text[prefix.end():].rstrip().removesuffix(";")
     value = json.loads(text)
     fields = {
         "location": ("locations", "timelineObjects", "semanticSegments", "timelinePath", "rawSignals"),
@@ -133,10 +145,17 @@ def summarize(text, name, platform, category):
         "interests": ("inferences", "ad_topics", "ads_interests", "topics", "topics_your_topics"),
         "activity": ("activities", "items"),
     }
-    rows = records_in(value, fields[category])
+    rows = records_in(value, fields.get(category, ()) + ADDITIONAL_FIELDS.get(category, ()))
+    if platform == "TikTok" and isinstance(value, dict):
+        section = value.get("Activity", value.get("Your Activity", value))
+        if isinstance(section, dict):
+            history = section.get("Video Browsing History", section.get("Watch History", section))
+            if isinstance(history, (dict, list)):
+                rows = records_in(history, ("VideoList", "WatchHistory", "Watch History", "watchHistory")) or rows
+    if platform == "Twitter/X":
+        rows = [row.get("tweet", row) for row in rows if isinstance(row, dict)]
     objects = [row for row in rows if isinstance(row, dict)]
     extra = []
-    hours = Counter(hour for row in objects if (hour := utc_hour(row)) is not None)
     artists = Counter()
     if platform == "Spotify" and category == "activity":
         countries = [row for row in objects if row.get("conn_country")]
@@ -145,11 +164,14 @@ def summarize(text, name, platform, category):
             extra.append(("location", len(countries), "Connection country"))
         if ips:
             extra.append(("security", len(ips), "Streaming IP present"))
+        devices = sum(bool(row.get("platform")) for row in objects)
+        if devices:
+            extra.append(("security", devices, "Playback device or client field present"))
         for row in objects:
             artist = row.get("master_metadata_album_artist_name") or row.get("artistName")
             if isinstance(artist, str) and (artist := artist.strip()):
                 artists[artist[:160]] += 1
-    return len(rows), extra, hours, artists
+    return len(rows), extra, artists, evidence_summary(rows, category)
 
 
 def directory_members(path):
@@ -175,6 +197,16 @@ def audit(inputs):
     hours = {}
     artists = Counter()
     coverage = []
+    analyst_sources = []
+    analyst_limited = False
+
+    def add_source(platform, category, kind, count, source, summary=None, signal=None):
+        nonlocal analyst_limited
+        if len(analyst_sources) >= MAX_ANALYST_SOURCES:
+            analyst_limited = True
+            return
+        analyst_sources.append({"id": source, "platform": platform, "category": category, "kind": kind,
+                                "count": count, **(summary or {}), "signal": signal})
 
     def add(platform, category, count, source, signal=None):
         finding = findings.setdefault((platform, category), {
@@ -207,7 +239,7 @@ def audit(inputs):
                 if len(data) > size:
                     status["limited_files"] += 1
                     continue
-                count, extra, activity, preferences = summarize(
+                count, extra, preferences, summary = summarize(
                     data.decode("utf-8-sig"), name, platform, category
                 )
             except (OSError, ValueError, RuntimeError, zipfile.BadZipFile, csv.Error, RecursionError):
@@ -219,17 +251,30 @@ def audit(inputs):
             status["parsed_files"] += 1
             evidence = f"Export {input_number} · {name[:400]}"
             add(platform, category, count, evidence)
-            for extra_category, amount, signal in extra:
+            source_id = f"Export {input_number}, file {index + 1}"
+            product, kind = product_and_kind(name, platform, category)
+            add_source(product, category, kind, count, source_id, summary)
+            for extra_category in {kind for kind, _, _ in extra}:
+                signals = [(amount, signal) for kind, amount, signal in extra if kind == extra_category]
+                # Extra fields overlap on the same stream. Keep a lower bound on affected rows.
+                amount = max(count for count, _ in signals)
+                signal = " and ".join(label for _, label in signals)
                 add(platform, extra_category, amount, evidence, signal)
-            if activity and category == "activity":
-                hours.setdefault(platform, Counter()).update(activity)
+                extra_summary = {}
+                if extra_category == "security":
+                    devices = next((n for n, label in signals if label.startswith("Playback device")), 0)
+                    extra_summary["flags"] = {"device_fields": devices}
+                add_source(product, extra_category, kind, amount, source_id, extra_summary, signal=signal)
+            for year in summary["hours_by_year"].values():
+                hours.setdefault(platform, Counter()).update({int(hour): count for hour, count in year.items()})
             artists.update(preferences)
 
     seen = set()
     for number, (filename, hint) in enumerate(inputs, 1):
-        if hint is not None and hint not in PLATFORMS.values():
+        if hint is not None and hint not in KNOWN_PLATFORMS[:-1]:
             raise ValueError("Unknown platform hint.")
         path = Path(filename).expanduser().resolve()
+        hint = hint or archive_hint(path.name)
         if path in seen:
             continue
         seen.add(path)
@@ -256,6 +301,8 @@ def audit(inputs):
     return {
         "findings": ranked,
         "coverage": coverage,
+        "analyst_sources": analyst_sources,
+        "analyst_limited": analyst_limited,
         "activity_utc": {platform: [counts[hour] for hour in range(24)]
                          for platform, counts in sorted(hours.items())},
         "interest_signals": [{"artist": name, "plays": count}

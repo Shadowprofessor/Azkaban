@@ -1,6 +1,7 @@
 const labels = {
   location: "Location", contacts: "Contacts", connections: "Connections",
-  messages: "Messages", security: "Network & sessions", activity: "Activity", interests: "Interests"
+  messages: "Messages", security: "Network & sessions", activity: "Activity", interests: "Interests",
+  sharing: "Off-platform activity", shopping: "Purchases", work: "Employment", education: "Education"
 };
 const byId = (id) => document.getElementById(id);
 

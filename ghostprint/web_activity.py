@@ -1,5 +1,5 @@
 import re
-from collections import deque
+from collections import Counter, deque
 from datetime import UTC, datetime
 from threading import Lock
 from urllib.parse import urlsplit
@@ -59,6 +59,7 @@ PATH = re.compile(r"/(?:[a-z]{2}(?:-[a-z]{2})?/)?(?:legal/|policies/)?"
                   r"cookie[-_]policy|cookies)(?:\.html)?/?$", re.I)
 DOMAIN = re.compile(r"(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+"
                     r"[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?", re.I)
+SITE_PERMISSIONS = {"camera", "microphone", "geolocation", "notifications"}
 
 
 def hostname(value):
@@ -89,14 +90,23 @@ class WebActivity:
     def __init__(self):
         self._events = deque(maxlen=2000)
         self._links = {}
+        self._permission_checks = {}
         self._lock = Lock()
 
-    def add(self, site, links=None):
+    def add(self, site, links=None, permissions=None):
         site = hostname(site)
         found = safe_links(site, links) if links is not None else None
+        if permissions is not None and (not isinstance(permissions, dict)
+                or set(permissions) - SITE_PERMISSIONS
+                or any(state not in ("granted", "denied", "prompt") for state in permissions.values())):
+            raise ValueError("Expected supported browser permission states.")
         with self._lock:
             if found is not None:
                 self._links[site] = found
+            if permissions is not None:
+                self._permission_checks[site] = permissions.copy()
+                if len(self._permission_checks) > 200:
+                    self._permission_checks.pop(next(iter(self._permission_checks)))
             if not self._events or self._events[-1]["site"] != site or links is None:
                 self._events.append({"site": site, "seen": datetime.now(UTC).isoformat(timespec="seconds")})
             if len(self._links) > 200:
@@ -115,10 +125,16 @@ class WebActivity:
         with self._lock:
             return self._links.get(site, [])
 
+    def permissions(self):
+        with self._lock:
+            return Counter(name for check in self._permission_checks.values()
+                           for name, state in check.items() if state == "granted")
+
     def clear(self):
         with self._lock:
             self._events.clear()
             self._links.clear()
+            self._permission_checks.clear()
 
 
 def answer(prompt, site, observed_links, *, search_web=False):

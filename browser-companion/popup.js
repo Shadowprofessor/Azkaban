@@ -43,7 +43,7 @@ field("toggle").addEventListener("click", async () => {
   }
 });
 
-function pagePrivacyLinks() {
+async function inspectPage() {
   const pattern = /^\/(?:[a-z]{2}(?:-[a-z]{2})?\/)?(?:legal\/|policies\/)?(?:privacy(?:[-_]policy|[-_]notice)?|data[-_]deletion|delete[-_]account|cookie[-_]policy|cookies)(?:\.html)?\/?$/i;
   const links = new Set();
   for (const anchor of document.querySelectorAll("a[href]")) {
@@ -54,7 +54,18 @@ function pagePrivacyLinks() {
       if (links.size >= 8) break;
     }
   }
-  return { site: location.hostname, links: [...links] };
+  const names = ["camera", "microphone", "geolocation", "notifications"];
+  const permissions = {};
+  if (navigator.permissions) {
+    await Promise.all(names.map(async (name) => {
+      try {
+        permissions[name] = (await navigator.permissions.query({ name })).state;
+      } catch {
+        // The browser may omit a permission type from its Permissions API.
+      }
+    }));
+  }
+  return { site: location.hostname, links: [...links], permissions };
 }
 
 field("inspect").addEventListener("click", async () => {
@@ -62,13 +73,13 @@ field("inspect").addEventListener("click", async () => {
     const next = config();
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (!tab?.url || !/^https?:\/\//.test(tab.url)) throw new Error("Open a website before scanning for links.");
-    const [result] = await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: pagePrivacyLinks });
+    const [result] = await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: inspectPage });
     const response = await fetch(`http://127.0.0.1:${next.port}/api/live/event`, {
       method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${next.code}` },
       body: JSON.stringify(result.result), signal: AbortSignal.timeout(2500)
     });
     if (!response.ok) throw new Error("Check the pairing code and open an HTTP or HTTPS website.");
-    field("message").textContent = `Sent ${result.result.links.length} privacy links to GhostPrint.`;
+    field("message").textContent = `Sent ${result.result.links.length} privacy links and ${Object.keys(result.result.permissions).length} permission checks to GhostPrint.`;
   } catch (error) {
     field("message").textContent = error.message;
   }

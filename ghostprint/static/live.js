@@ -2,6 +2,7 @@ const ui = (id) => document.getElementById(id);
 const promptField = ui("ask-prompt");
 const siteField = ui("ask-site");
 const askForm = ui("ask-form");
+const askMode = ui("ask-mode");
 const sendButton = ui("send-prompt");
 const webToggle = ui("search-web");
 const recorderButton = ui("record-voice");
@@ -17,6 +18,11 @@ let speechUrl;
 webToggle.checked = sessionStorage.getItem("ghostprint-web-fallback") === "enabled";
 webToggle.addEventListener("change", () => {
   sessionStorage.setItem("ghostprint-web-fallback", webToggle.checked ? "enabled" : "disabled");
+});
+askMode.addEventListener("change", () => {
+  const analyst = askMode.value === "analyst";
+  ui("web-search-option").hidden = analyst;
+  ui("analyst-note").hidden = !analyst;
 });
 
 async function localRequest(url, options) {
@@ -43,6 +49,52 @@ function linkTo(title, url, target) {
   link.href = url;
   link.target = "_blank";
   link.rel = "noopener noreferrer";
+}
+
+function showAnalysis(analysis, target) {
+  const headline = localNode("p", analysis.answer, target);
+  headline.className = "analysis-answer";
+  if (analysis.profile.length) {
+    localNode("h4", "Estimated profile", target);
+    const fields = localNode("ul", "", target);
+    for (const item of analysis.profile) {
+      localNode("li", `${item.field} · ${item.value} · ${item.confidence} confidence`, fields);
+    }
+  }
+
+  localNode("h4", "Evidence", target);
+  if (!analysis.claims.length) localNode("p", "No matching records in the available evidence.", target);
+  for (const claim of analysis.claims) {
+    const figure = localNode("article", "", target);
+    localNode("h5", claim.claim, figure);
+    const evidence = localNode("ul", "", figure);
+    for (const item of claim.evidence) {
+      localNode("li", `${item.source} · ${item.fact}`, evidence);
+    }
+    localNode("p", `Confidence · ${claim.confidence.level} · ${claim.confidence.basis}`, figure);
+    localNode("p", `Risk · ${claim.risk.level} · ${claim.risk.why}`, figure);
+    localNode("p", `Recommendation · ${claim.recommendation}`, figure);
+  }
+  localNode("h4", "Confidence", target);
+  localNode("p", `${analysis.confidence.level} · ${analysis.confidence.basis}`, target);
+  localNode("h4", "Privacy Risk", target);
+  localNode("p", `${analysis.risk.level} · ${analysis.risk.why}`, target);
+  localNode("h4", "Recommended Action", target);
+  if (!analysis.actions.length) localNode("p", "Import relevant records or narrow your question.", target);
+  for (const [number, action] of analysis.actions.entries()) {
+    const item = localNode("article", "", target);
+    localNode("h5", `Priority ${number + 1} · ${action.title}`, item);
+    localNode("p", action.reason, item);
+    localNode("p", `Impact · ${action.impact} · Difficulty · ${action.difficulty}`, item);
+    const steps = localNode("ol", "", item);
+    for (const step of action.steps) localNode("li", step, steps);
+    if (action.url) linkTo("Open source", action.url, item);
+  }
+  if (analysis.limitations.length) {
+    localNode("h4", "Limits of the evidence", target);
+    const list = localNode("ul", "", target);
+    for (const limitation of analysis.limitations) localNode("li", limitation, list);
+  }
 }
 
 async function refreshSites() {
@@ -93,7 +145,8 @@ async function runQuestion() {
   const spoken = transcript?.text === promptField.value ? transcript : undefined;
   const prompt = (spoken?.lookup || promptField.value).trim();
   const site = siteField.value.trim();
-  const searchWeb = webToggle.checked;
+  const mode = askMode.value;
+  const searchWeb = mode !== "analyst" && webToggle.checked;
   panel.hidden = false;
   target.replaceChildren();
   if (!prompt && !site) {
@@ -103,10 +156,17 @@ async function runQuestion() {
     return;
   }
   sendButton.disabled = true;
-  status.textContent = searchWeb ? "Checking local guides first…" : "Searching local guides…";
+  status.textContent = mode === "analyst" ? "Reviewing local evidence…" :
+    searchWeb ? "Checking local guides first…" : "Searching local guides…";
   try {
-    const answer = await submitJson("/api/live/ask", { site, prompt, search_web: searchWeb });
+    const answer = await submitJson("/api/live/ask", { site, prompt, mode, search_web: searchWeb });
     if (id !== askRequest) return;
+    if (answer.analysis) {
+      status.textContent = "PrivacyGPT · Local analysis";
+      showAnalysis(answer.analysis, target);
+      ui("answer-heading").scrollIntoView({ block: "nearest" });
+      return;
+    }
     status.textContent = answer.site ? `Guidance for ${answer.site}` : "Based on local privacy guides.";
     for (const guide of answer.guides) {
       const article = localNode("article", "", target);

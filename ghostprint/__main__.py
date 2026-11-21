@@ -10,7 +10,8 @@ from .cases import BY_CASE
 from .demo import write_demo
 from .evaluation import evaluate
 from .model import MODEL, NVIDIA_URL, bridge_rank
-from .retrieval import BY_ID, PLATFORMS, retrieve
+from .archive_signals import KNOWN_PLATFORMS
+from .retrieval import BY_ID, retrieve
 from .server import bridge, dashboard
 
 
@@ -28,7 +29,7 @@ def main():
 
     audit_command = commands.add_parser("audit", help="Audit local ZIPs or directories")
     audit_command.add_argument("archives", nargs="+")
-    audit_command.add_argument("--platform", choices=sorted(PLATFORMS.values()),
+    audit_command.add_argument("--platform", choices=sorted(KNOWN_PLATFORMS[:-1]),
                                help="Use this hint for every input in the command")
     audit_command.add_argument("--output", help="Write report JSON to this local file")
     audit_command.add_argument("--serve", action="store_true", help="Serve report on local loopback")
