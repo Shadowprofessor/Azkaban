@@ -45,14 +45,27 @@ The app cards start OAuth through `POST /api/oauth/{provider}/start` for `instag
 
 Provider client IDs, redirect URIs, scopes, callback verification, token storage, disconnect/revocation, and provider review requirements must be configured by the account-connector backend. The UI does not report a connection as successful until the connector completes.
 
-## Frozen WebSocket messages
+## Agent fields for advanced privacy features
 
-Inbound `status`, `flow`, `verdict`, `score`, `blocklist`, `evidence`, and `error`, plus outbound `start`, `stop`, `analyze`, `blocklist`, and `export_evidence` follow the PRD message shapes. Do not silently rename or extend contract fields; agree across workstreams before changing the frozen contract.
+The existing core messages remain accepted. Advanced screens consume optional, additive agent telemetry; without it they show an unavailable state instead of estimating or inventing measurements.
+
+- **Idle activity:** each flow may include `idle: { state: "idle" | "active", sessionId }`. The agent must determine device or monitored-app inactivity and distinguish suspend/resume. Optional `traffic.uploadBytes`, `traffic.downloadBytes`, `traffic.protocol`, `traffic.durationMs`, and `process.pid` / `process.name` populate their corresponding details. Optional `status.idleMonitoring` and `status.idleThresholdMs` report agent capability and acknowledged configuration. The frontend sends optional `configure_idle` with `inactivityMs`; agents that do not support it can ignore the message.
+- **Cross-app identity links:** a PII signal may include `correlation: { scheme: "hmac-sha256", pseudonymized: true, fingerprint, confidence? }`. The fingerprint must be a stable keyed HMAC generated locally from the normalized value, using a protected key. Never send or store the raw identifier for correlation. The dashboard links only exact matching 64-character fingerprints and does not infer sharing between companies.
+- **Evidence vault:** an export may include `chain: { expectedCount, records: [{ recordId, record, previousHash, hash }], checkpoint?: { lastHash } }`. Each record hash is SHA-256 of canonical JSON for `{ recordId, record, previousHash }`, with recursively sorted object keys and preserved array order. The browser can check record hashes, link continuity, expected count and an optional final hash. A plain checkpoint is not a signature; signed checkpoints and protected key storage must be implemented by the agent.
+- **Legal intelligence:** curated primary material is bundled in `src/legalReferences.js`, with official links and source-check dates. Findings returned by an agent remain observations, not legal determinations. The DPDP Act and Rules use phased commencement; the library calls out the applicable schedule and directs users to verify the original Gazette text.
+
+These fields do not make the existing agent produce data it does not collect. OS idle detection, process attribution, traffic byte direction, keyed identifier extraction, append-only storage, signatures, and complete evidence exports require corresponding local-agent work. Keep optional extensions coordinated with the agent team.
 
 ## Build
 
 ```powershell
 npm run build
+```
+
+Run the privacy feature unit checks with:
+
+```powershell
+npm test
 ```
 
 The production dashboard is still a Vite app at this stage. Migrating it to Next.js App Router and wiring OAuth/HIBP API routes are follow-up items from the TRD. The frontend can be served from any laptop; the capture agent remains local to the audited device.
