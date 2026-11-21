@@ -1,13 +1,21 @@
 "use client";
 
 import { Guard } from "@/components/Guard";
-import { useAgent } from "@/lib/ui/store";
+import { FlowList } from "@/components/radar/FlowList";
+import { Controls } from "@/components/radar/Controls";
 
 export default function RadarPage() {
-  const n = useAgent((s) => s.flows.length);
   return (
     <Guard>
-      <p className="p-4 text-muted" data-testid="flow-count">{n} flows</p>
+      <div className="flex h-[calc(100vh-57px)] flex-col gap-3 p-3 md:p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h1 className="text-lg font-semibold">Leak Radar</h1>
+          <Controls />
+        </div>
+        <div className="flex min-h-0 flex-1 gap-4">
+          <FlowList />
+        </div>
+      </div>
     </Guard>
   );
 }
