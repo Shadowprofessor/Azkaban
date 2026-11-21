@@ -878,6 +878,113 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 }
 @media(prefers-reduced-motion:reduce) { .atlas-packet { display:none; } }
 
+/* Landing page dark theme */
+.consent-screen {
+  --paper:#090a11; --rule:#29283a; --forest:#6447c9; --signal:#53d9dd;
+  background:radial-gradient(ellipse at 78% 22%,#211747 0%,#10101c 34%,#090a11 72%);
+  color:#f1efff;
+}
+.consent-top { border-color:#29283a; color:#f1efff; }
+.brand-mark { background:#171725 !important; border:1px solid #4a3b8e !important; }
+.brand-mark span,.brand-mark span:nth-child(2) { background:#53d9dd !important; }
+.brand b,.landing-hero h1,.landing-proof h2,.toolkit-heading h2,.landing-legal h2 { color:#f1efff; }
+.brand small,.brand-v2,.consent-top-status,.landing-nav a,.landing-nav button { color:#aaa7c5; }
+.brand-v2 { border-color:#4a4760; }
+.landing-nav button { border-color:#65539e; color:#e3dbff; }
+.landing-nav button:hover { background:#6447c9; border-color:#8d70ef; color:#fff; }
+.consent-top-status i,.pulse-mark { background:#53d9dd; box-shadow:0 0 0 3px #53d9dd20; }
+.hero-overline,.hero-caption,.schematic-head,.product-window-meta,.product-columns,.product-foot,.product-index,.schematic-foot,.schematic-data>span,.schematic-receipt,.section-index,.proof-number,.legal-index,.legal-note>span,.toolkit-list article>span:first-child { color:#9995b7; }
+.hero-overline { border-color:#353149; }
+.hero-overline span:last-child { color:#8782a3; }
+.landing-hero { border-color:#29283a; }
+.landing-hero h1 em,.toolkit-heading h2 em,.landing-legal h2 em { color:#b5a0ff; }
+.hero-deck,.landing-proof p,.landing-legal p { color:#b3b0c7; }
+.hero-text-link,.landing-evidence a,.landing-proof article>a { color:#c1b5ef; border-color:#645595; }
+.hero-text-link:hover,.landing-evidence a:hover,.landing-proof article>a:hover { color:#fff; border-color:#53d9dd; }
+.landing-trust { color:#aaa7c5; }
+.landing-trust svg { color:#53d9dd; }
+.landing-trust>span { background:#625d7a; }
+.landing-cta,.consent-screen .btn.primary { border-color:#53d9dd; background:#53d9dd; color:#10111b; }
+.landing-cta:hover,.consent-screen .btn.primary:hover { border-color:#83f3f1; background:#83f3f1; }
+.product-window { border-color:#3c365e; background:#11111d; box-shadow:13px 13px 0 #171326; }
+.product-window::before { background:#53d9dd; }
+.product-window-head,.product-foot,.product-columns { border-color:#302d45; }
+.product-window-brand { color:#dedaf2; }
+.product-window-brand small,.product-window-meta,.product-columns,.product-index { color:#8f8ba9; }
+.mini-brand-mark { background:#27203f; color:#53d9dd; }
+.demo-label { color:#aaa7c5; }
+.route-symbol { border-color:#484263; background:#1c1a2a; color:#77e4dc; }
+.route-node.company .route-symbol { color:#c2a2ff; }
+.route-node b,.route-data b { color:#eeeafd; }
+.route-node small,.route-data small { color:#aaa6c2; }
+.route-wire { background:#625b7d; }
+.route-wire::after { border-color:#b5a0ff; }
+.route-wire i { background:#53d9dd; }
+.data-tag { border-color:#46686a; background:#17282d; color:#85e2df; }
+.product-foot { border-color:#302d45; color:#b8b2cd; }
+.product-foot>span { color:#8884a1; }
+.hero-caption { color:#8f8ba9; }
+.landing-proof { border-color:#29283a; }
+.section-index b { color:#716c8c; }
+.landing-proof article { border-color:#353149; }
+.proof-number { color:#77dedb; }
+.landing-proof h2 { color:#eeeafd; }
+.landing-proof p { color:#aaa7c5; }
+.landing-evidence,.landing-toolkit,.landing-legal { border-color:#29283a; }
+.landing-evidence,.landing-toolkit { color:#eeeafd; }
+.evidence-editorial,.evidence-schematic { border-color:#353149; background:#11111d; }
+.schematic-node small,.schematic-node>span:last-child,.schematic-receipt,.schematic-foot { color:#9995b7; }
+.schematic-node b,.schematic-data b { color:#e9e5fa; }
+.schematic-data,.schematic-receipt,.schematic-head,.schematic-flow { border-color:#302d45; }
+.schematic-link { background:#625b7d; }
+.schematic-link::after { border-color:#b5a0ff; }
+.schematic-link b { background:#53d9dd; }
+.toolkit-list,.toolkit-list article,.legal-note { border-color:#353149; }
+.toolkit-list article>div b { color:#eeeafd; }
+.toolkit-list article>div p { color:#aaa7c5; }
+.toolkit-list article>svg,.legal-index svg { color:#77dedb; }
+.toolkit-in-progress>small { background:#252239; color:#b1abc9; }
+.legal-index { color:#b6a5f2; }
+.legal-index svg { border-color:#514577; }
+.landing-legal>div:nth-child(2)>a { color:#beb2ec; }
+.legal-note { border-top-color:#353149; border-left-color:#53d9dd; }
+.legal-note>span { color:#9995b7; }
+.legal-note b { color:#dfd9f5; }
+.consent-bottom { color:#9995b7; }
+.consent-bottom .brand small,.consent-bottom small { color:#8985a3; }
+.consent-bottom>a { color:#c4b7f5; }
+.consent-bottom>span:nth-child(2) i { background:#53d9dd; }
+.consent-bottom { border-color:#29283a; }
+.landing-product {
+  border:1px solid #36324f;
+  background:linear-gradient(150deg,#11131e 0%,#0c0e17 72%,#151126 100%);
+}
+.landing-product::before {
+  opacity:.52;
+  background:radial-gradient(ellipse at 52% 48%,#37245f66 0,transparent 58%),linear-gradient(180deg,transparent 63%,#28204455 100%);
+}
+.atlas-top,.atlas-foot { color:#d0c9ed; }
+.atlas-labels { color:#c4bddf; }
+.atlas-top { border-color:#ffffff2b; }
+.atlas-top i { box-shadow:0 0 9px #53d9dd99; }
+.atlas-map { color:#d7d0f2; }
+.atlas-map text { fill:#e1dcf4; }
+.atlas-route { stroke:#a99af0; stroke-width:1.8; opacity:.9; }
+.atlas-route-two { stroke:#59d9dc; opacity:.85; }
+.atlas-route-three { stroke:#cfb4ff; opacity:.75; }
+.atlas-node circle { fill:#191a2a; stroke:#78e3df; stroke-width:2; }
+.atlas-node path { stroke:#e2fffa; stroke-width:1.8; }
+.company-node circle { fill:#241b3a; stroke:#c7b3ff; }
+.secondary-node circle { stroke:#f1c56c; }
+.data-node circle { fill:#12252c; stroke:#79e7e0; }
+.atlas-packet { fill:#7af0e8; filter:drop-shadow(0 0 5px #7af0e8cc); }
+.packet-two { fill:#ffd47a; filter:drop-shadow(0 0 5px #ffd47acc); }
+.atlas-foot { border-color:#ffffff2b; }
+.atlas-foot b { color:#fff; }
+.product-index { color:#b8b1d4; }
+.product-index span { color:#e2dcf7; }
+.hero-caption { color:#c0bad8; }
+
 /* Advanced findings: each number is backed by agent telemetry or marked unavailable. */
 .sidebar { overflow-y:auto; }
 .side-nav { gap:2px; }
