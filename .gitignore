@@ -1,0 +1,6 @@
+__pycache__/
+.venv/
+.env
+.voice-models/
+ghostprint-report.json
+*.zip

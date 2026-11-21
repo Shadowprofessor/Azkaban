@@ -1,0 +1,12 @@
+{
+  "manifest_version": 3,
+  "name": "GhostPrint Browser Companion",
+  "version": "1.0.0",
+  "description": "Share foreground website hostnames with your local GhostPrint dashboard.",
+  "incognito": "not_allowed",
+  "permissions": ["storage", "activeTab", "scripting"],
+  "optional_permissions": ["tabs"],
+  "host_permissions": ["http://127.0.0.1/*"],
+  "background": { "service_worker": "worker.js" },
+  "action": { "default_popup": "popup.html" }
+}

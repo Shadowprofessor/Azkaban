@@ -1,0 +1,8 @@
+:root { color-scheme: dark; font: 14px/1.4 system-ui, sans-serif; }
+body { background: #0e1717; color: #edf7ed; width: 300px; margin: 0; padding: 16px; }
+h1 { font-size: 1.15rem; margin: 0; color: #8fefb1; }
+p { color: #abc2bc; }
+label { display: grid; gap: 3px; margin: 8px 0; }
+input, button { font: inherit; background: #213534; color: inherit; border: 1px solid #526963; border-radius: 5px; padding: 7px; }
+button { display: block; width: 100%; margin: 6px 0; cursor: pointer; }
+button:disabled { opacity: .5; cursor: default; }

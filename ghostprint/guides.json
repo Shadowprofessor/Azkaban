@@ -1,0 +1,197 @@
+[
+  {
+    "id": "google-timeline",
+    "platform": "Google",
+    "category": "location",
+    "title": "Delete and limit Google Maps Timeline",
+    "keywords": "GPS routes visits coordinates location history travel movements",
+    "summary": "Review old routes and set a shorter retention period.",
+    "url": "https://support.google.com/maps/answer/6258979",
+    "steps": [
+      "Open Google Maps on the device that holds Timeline data. Tap your profile, then Your Timeline.",
+      "Open More → Location and privacy settings. Delete a date range or all Timeline data after reviewing what you want to keep.",
+      "Use Auto-delete Timeline or turn Timeline off to limit future retention. Review other Google activity controls separately."
+    ]
+  },
+  {
+    "id": "google-contacts",
+    "platform": "Google",
+    "category": "contacts",
+    "title": "Remove unnecessary Google Contacts",
+    "keywords": "address book synced email phone people vcard",
+    "summary": "Remove stored address-book entries you no longer need.",
+    "url": "https://support.google.com/contacts/answer/7280886",
+    "steps": [
+      "Open Google Contacts and select the entries you want to remove.",
+      "Choose More → Delete → Move to trash.",
+      "Review Trash if you need immediate permanent removal. The change can sync to your devices."
+    ]
+  },
+  {
+    "id": "google-activity",
+    "platform": "Google",
+    "category": "activity",
+    "title": "Delete or auto-delete Google activity",
+    "keywords": "search browse youtube watch web app myactivity clicks viewing retention",
+    "summary": "Review past account activity and shorten its retention.",
+    "url": "https://support.google.com/accounts/answer/465",
+    "steps": [
+      "Open your Google Account → Data & privacy → History settings.",
+      "Select the activity type you want to manage, such as YouTube History or Web & App Activity where available.",
+      "Use Manage activity to delete past entries. Set Auto-delete and confirm a retention period."
+    ]
+  },
+  {
+    "id": "google-ads",
+    "platform": "Google",
+    "category": "interests",
+    "title": "Review Google ad topics and personalization",
+    "keywords": "inferred topics preferences profiling ads targeting personalized interests",
+    "summary": "Reduce how saved profile and activity signals are used for ads.",
+    "url": "https://support.google.com/My-Ad-Center-Help/answer/12156161",
+    "steps": [
+      "Open My Ad Center and select Manage Privacy.",
+      "Review your account information and activity used to personalize ads.",
+      "Turn off the activity inputs you want to exclude, or switch off personalized ads in My Ad Center."
+    ]
+  },
+  {
+    "id": "instagram-contacts",
+    "platform": "Instagram",
+    "category": "contacts",
+    "title": "Stop Instagram contact uploads",
+    "keywords": "address book synced contacts phone contacts uploading people",
+    "summary": "Stop future contact uploads and review contacts already uploaded.",
+    "url": "https://www.facebook.com/help/instagram/236691729788553",
+    "steps": [
+      "Open Instagram settings and find Accounts Center → Your information and permissions → Upload contacts.",
+      "Choose your Instagram account and turn off Connect contacts. Review this on every device with the account.",
+      "In Accounts Center on the web, look for Manage contacts and review the option to delete previously uploaded contacts."
+    ]
+  },
+  {
+    "id": "instagram-network",
+    "platform": "Instagram",
+    "category": "connections",
+    "title": "Review Instagram followers and account visibility",
+    "keywords": "following followers relationships social graph people circle network",
+    "summary": "Reduce visibility of the account and review who follows it.",
+    "url": "https://www.facebook.com/help/instagram/448523408565555",
+    "steps": [
+      "Open Instagram settings and find Account privacy.",
+      "If the account supports it, enable Private account.",
+      "Review your followers and remove the accounts you no longer want to have access."
+    ]
+  },
+  {
+    "id": "instagram-messages",
+    "platform": "Instagram",
+    "category": "messages",
+    "title": "Review sensitive Instagram messages",
+    "keywords": "DM chats inbox conversations message threads private communication",
+    "summary": "Review conversations containing information you want to limit.",
+    "url": "https://www.facebook.com/help/instagram/491370017690934",
+    "steps": [
+      "Open your Instagram inbox and review conversations with sensitive information.",
+      "For a message you sent, use the message menu → Unsend if you want to remove it from the conversation.",
+      "Recipients may already have seen or saved the message."
+    ]
+  },
+  {
+    "id": "instagram-security",
+    "platform": "Instagram",
+    "category": "security",
+    "title": "Review Instagram logins and enable two-factor authentication",
+    "keywords": "login ip devices sessions authentication password unknown sign ins",
+    "summary": "Review devices and strengthen account sign-in.",
+    "url": "https://about.fb.com/news/2021/07/keeping-instagram-safe-and-secure/",
+    "steps": [
+      "Open Accounts Center → Password and security → Where you're logged in.",
+      "Review the listed sessions and log out of any you do not recognize.",
+      "Under Password and security, open Two-factor authentication and follow the prompts."
+    ]
+  },
+  {
+    "id": "instagram-ads",
+    "platform": "Instagram",
+    "category": "interests",
+    "title": "Review Instagram ad preferences",
+    "keywords": "inferred profile topics targeting ads personalization advertisers interests",
+    "summary": "Check which topics and signals inform ads on your account.",
+    "url": "https://accountscenter.instagram.com/ad_preferences/",
+    "steps": [
+      "Open Accounts Center → Ad preferences and select your Instagram account if prompted.",
+      "Review the ad topics and available activity-based controls.",
+      "Apply the preferences you want. Available controls can vary by account and region."
+    ]
+  },
+  {
+    "id": "spotify-listening",
+    "platform": "Spotify",
+    "category": "activity",
+    "title": "Limit visibility of Spotify listening activity",
+    "keywords": "streams songs artists plays listening watched music history friends feed listening patterns",
+    "summary": "Reduce who can see what you listen to.",
+    "url": "https://support.spotify.com/ca-en/article/privacy-and-social-controls/",
+    "steps": [
+      "In Spotify, open Settings and privacy → Privacy and social.",
+      "Turn off Listening activity and Recently played artists if you want to hide them from other listeners.",
+      "Use Private Session for temporary privacy. These sharing controls address visibility to others."
+    ]
+  },
+  {
+    "id": "spotify-ads",
+    "platform": "Spotify",
+    "category": "interests",
+    "title": "Review Spotify tailored-ad controls",
+    "keywords": "targeting interests advertising profiling preferences personalized ads",
+    "summary": "Review processing choices for advertising.",
+    "url": "https://support.spotify.com/ug-en/article/data-rights-and-privacy-settings/",
+    "steps": [
+      "Open your Spotify account page and find Privacy Settings.",
+      "Review the available tailored-ad controls and turn off the processing options you do not want.",
+      "Review Spotify's privacy choices page for available account data requests."
+    ]
+  },
+  {
+    "id": "spotify-network",
+    "platform": "Spotify",
+    "category": "connections",
+    "title": "Hide Spotify followers and following lists",
+    "keywords": "followers following friends social graph connections profile",
+    "summary": "Limit who can see your social connections in Spotify.",
+    "url": "https://support.spotify.com/ca-en/article/privacy-and-social-controls/",
+    "steps": [
+      "In the mobile Spotify app, open Settings and privacy → Privacy and social.",
+      "Turn off Followers & following to hide these lists on your profile."
+    ]
+  },
+  {
+    "id": "spotify-location",
+    "platform": "Spotify",
+    "category": "location",
+    "title": "Review Spotify precise location access",
+    "keywords": "country territory connection ip location geography geolocation permission",
+    "summary": "Distinguish network location in the export from precise device location access.",
+    "url": "https://support.spotify.com/ca-en/article/privacy-and-social-controls/",
+    "steps": [
+      "In Spotify mobile settings, open Privacy and social and check Precise location if the control is available.",
+      "Turn off precise location if you do not need the features it supports.",
+      "Review the Spotify export documentation for what the country and IP fields represent."
+    ]
+  },
+  {
+    "id": "spotify-security",
+    "platform": "Spotify",
+    "category": "security",
+    "title": "Review Spotify app access and account sessions",
+    "keywords": "IP remote devices third party apps integrations unauthorized login connected accounts sessions",
+    "summary": "Check whether other devices or services still have access.",
+    "url": "https://support.spotify.com/xk-en/article/protect-your-account/",
+    "steps": [
+      "Open your Spotify account page → Manage apps and remove access from apps you do not use.",
+      "If you suspect unauthorized access, change your password and use Sign out everywhere under Security and privacy.",
+      "Remove partner devices from Manage apps where needed."
+    ]
+  }
+]

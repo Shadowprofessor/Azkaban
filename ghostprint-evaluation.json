@@ -1,0 +1,1036 @@
+{
+  "retrieval": {
+    "BM25": {
+      "top_1": 0.75,
+      "recall_at_5": 1.0,
+      "mrr_at_5": 0.8458333333333334,
+      "correct_abstentions": 2,
+      "negative_count": 4,
+      "positive_count": 20,
+      "median_ms": 0.082,
+      "errors": 0,
+      "cases": [
+        {
+          "case": "g1",
+          "expected": "google-timeline",
+          "ids": [
+            "google-contacts",
+            "google-timeline",
+            "google-ads",
+            "google-activity"
+          ],
+          "rank": 2,
+          "latency_ms": 0.166,
+          "error": null
+        },
+        {
+          "case": "g2",
+          "expected": "google-activity",
+          "ids": [
+            "google-activity",
+            "spotify-listening",
+            "google-contacts",
+            "google-timeline",
+            "google-ads"
+          ],
+          "rank": 1,
+          "latency_ms": 0.091,
+          "error": null
+        },
+        {
+          "case": "g3",
+          "expected": "google-contacts",
+          "ids": [
+            "google-contacts",
+            "google-timeline",
+            "google-ads",
+            "google-activity",
+            "instagram-contacts"
+          ],
+          "rank": 1,
+          "latency_ms": 0.079,
+          "error": null
+        },
+        {
+          "case": "g4",
+          "expected": "google-ads",
+          "ids": [
+            "google-contacts",
+            "google-timeline",
+            "google-ads",
+            "google-activity"
+          ],
+          "rank": 3,
+          "latency_ms": 0.075,
+          "error": null
+        },
+        {
+          "case": "i1",
+          "expected": "instagram-contacts",
+          "ids": [
+            "instagram-network",
+            "instagram-security",
+            "instagram-ads",
+            "instagram-contacts",
+            "instagram-messages"
+          ],
+          "rank": 4,
+          "latency_ms": 0.106,
+          "error": null
+        },
+        {
+          "case": "i2",
+          "expected": "instagram-network",
+          "ids": [
+            "instagram-network",
+            "spotify-network",
+            "instagram-ads",
+            "google-activity",
+            "google-ads"
+          ],
+          "rank": 1,
+          "latency_ms": 0.103,
+          "error": null
+        },
+        {
+          "case": "i3",
+          "expected": "instagram-messages",
+          "ids": [
+            "instagram-messages",
+            "instagram-ads",
+            "instagram-contacts",
+            "instagram-network",
+            "instagram-security"
+          ],
+          "rank": 1,
+          "latency_ms": 0.076,
+          "error": null
+        },
+        {
+          "case": "i4",
+          "expected": "instagram-security",
+          "ids": [
+            "instagram-security",
+            "google-timeline",
+            "spotify-security",
+            "instagram-messages",
+            "instagram-ads"
+          ],
+          "rank": 1,
+          "latency_ms": 0.097,
+          "error": null
+        },
+        {
+          "case": "i5",
+          "expected": "instagram-ads",
+          "ids": [
+            "instagram-messages",
+            "instagram-ads",
+            "instagram-contacts",
+            "instagram-network",
+            "instagram-security"
+          ],
+          "rank": 2,
+          "latency_ms": 0.08,
+          "error": null
+        },
+        {
+          "case": "s1",
+          "expected": "spotify-listening",
+          "ids": [
+            "spotify-network",
+            "instagram-contacts",
+            "spotify-listening",
+            "spotify-ads",
+            "spotify-location"
+          ],
+          "rank": 3,
+          "latency_ms": 0.082,
+          "error": null
+        },
+        {
+          "case": "s2",
+          "expected": "spotify-ads",
+          "ids": [
+            "spotify-ads",
+            "instagram-messages",
+            "spotify-network",
+            "spotify-location",
+            "spotify-listening"
+          ],
+          "rank": 1,
+          "latency_ms": 0.09,
+          "error": null
+        },
+        {
+          "case": "s3",
+          "expected": "spotify-network",
+          "ids": [
+            "spotify-network",
+            "instagram-network",
+            "instagram-contacts",
+            "spotify-security",
+            "google-contacts"
+          ],
+          "rank": 1,
+          "latency_ms": 0.11,
+          "error": null
+        },
+        {
+          "case": "s4",
+          "expected": "spotify-location",
+          "ids": [
+            "spotify-location",
+            "instagram-contacts",
+            "google-contacts",
+            "google-timeline",
+            "spotify-network"
+          ],
+          "rank": 1,
+          "latency_ms": 0.085,
+          "error": null
+        },
+        {
+          "case": "s5",
+          "expected": "spotify-security",
+          "ids": [
+            "spotify-security",
+            "google-timeline",
+            "spotify-network",
+            "spotify-ads",
+            "instagram-network"
+          ],
+          "rank": 1,
+          "latency_ms": 0.082,
+          "error": null
+        },
+        {
+          "case": "g5",
+          "expected": "google-timeline",
+          "ids": [
+            "google-timeline",
+            "instagram-contacts",
+            "google-activity",
+            "google-ads",
+            "google-contacts"
+          ],
+          "rank": 1,
+          "latency_ms": 0.106,
+          "error": null
+        },
+        {
+          "case": "i6",
+          "expected": "instagram-security",
+          "ids": [
+            "instagram-security",
+            "instagram-messages",
+            "instagram-ads",
+            "instagram-contacts",
+            "instagram-network"
+          ],
+          "rank": 1,
+          "latency_ms": 0.074,
+          "error": null
+        },
+        {
+          "case": "s6",
+          "expected": "spotify-listening",
+          "ids": [
+            "spotify-listening",
+            "spotify-network",
+            "spotify-security",
+            "spotify-ads",
+            "instagram-network"
+          ],
+          "rank": 1,
+          "latency_ms": 0.079,
+          "error": null
+        },
+        {
+          "case": "g6",
+          "expected": "google-activity",
+          "ids": [
+            "google-activity",
+            "google-contacts",
+            "google-timeline",
+            "google-ads"
+          ],
+          "rank": 1,
+          "latency_ms": 0.07,
+          "error": null
+        },
+        {
+          "case": "i7",
+          "expected": "instagram-contacts",
+          "ids": [
+            "instagram-contacts",
+            "google-contacts",
+            "google-activity",
+            "google-timeline",
+            "instagram-network"
+          ],
+          "rank": 1,
+          "latency_ms": 0.09,
+          "error": null
+        },
+        {
+          "case": "s7",
+          "expected": "spotify-location",
+          "ids": [
+            "spotify-location",
+            "spotify-security",
+            "google-activity",
+            "instagram-ads",
+            "spotify-network"
+          ],
+          "rank": 1,
+          "latency_ms": 0.081,
+          "error": null
+        },
+        {
+          "case": "n1",
+          "expected": null,
+          "ids": [],
+          "rank": 0,
+          "latency_ms": 0.052,
+          "error": null
+        },
+        {
+          "case": "n2",
+          "expected": null,
+          "ids": [],
+          "rank": 0,
+          "latency_ms": 0.049,
+          "error": null
+        },
+        {
+          "case": "n3",
+          "expected": null,
+          "ids": [
+            "google-contacts",
+            "google-timeline",
+            "google-ads",
+            "google-activity"
+          ],
+          "rank": 0,
+          "latency_ms": 0.061,
+          "error": null
+        },
+        {
+          "case": "n4",
+          "expected": null,
+          "ids": [
+            "instagram-messages",
+            "instagram-ads",
+            "instagram-contacts",
+            "instagram-network",
+            "instagram-security"
+          ],
+          "rank": 0,
+          "latency_ms": 0.061,
+          "error": null
+        }
+      ]
+    },
+    "Metadata + BM25": {
+      "top_1": 1.0,
+      "recall_at_5": 1.0,
+      "mrr_at_5": 1.0,
+      "correct_abstentions": 4,
+      "negative_count": 4,
+      "positive_count": 20,
+      "median_ms": 0.048,
+      "errors": 0,
+      "cases": [
+        {
+          "case": "g1",
+          "expected": "google-timeline",
+          "ids": [
+            "google-timeline"
+          ],
+          "rank": 1,
+          "latency_ms": 0.103,
+          "error": null
+        },
+        {
+          "case": "g2",
+          "expected": "google-activity",
+          "ids": [
+            "google-activity"
+          ],
+          "rank": 1,
+          "latency_ms": 0.051,
+          "error": null
+        },
+        {
+          "case": "g3",
+          "expected": "google-contacts",
+          "ids": [
+            "google-contacts"
+          ],
+          "rank": 1,
+          "latency_ms": 0.043,
+          "error": null
+        },
+        {
+          "case": "g4",
+          "expected": "google-ads",
+          "ids": [
+            "google-ads"
+          ],
+          "rank": 1,
+          "latency_ms": 0.04,
+          "error": null
+        },
+        {
+          "case": "i1",
+          "expected": "instagram-contacts",
+          "ids": [
+            "instagram-contacts",
+            "instagram-network",
+            "instagram-security",
+            "instagram-ads"
+          ],
+          "rank": 1,
+          "latency_ms": 0.054,
+          "error": null
+        },
+        {
+          "case": "i2",
+          "expected": "instagram-network",
+          "ids": [
+            "instagram-network",
+            "instagram-ads",
+            "instagram-security",
+            "instagram-contacts"
+          ],
+          "rank": 1,
+          "latency_ms": 0.064,
+          "error": null
+        },
+        {
+          "case": "i3",
+          "expected": "instagram-messages",
+          "ids": [
+            "instagram-messages"
+          ],
+          "rank": 1,
+          "latency_ms": 0.043,
+          "error": null
+        },
+        {
+          "case": "i4",
+          "expected": "instagram-security",
+          "ids": [
+            "instagram-security"
+          ],
+          "rank": 1,
+          "latency_ms": 0.047,
+          "error": null
+        },
+        {
+          "case": "i5",
+          "expected": "instagram-ads",
+          "ids": [
+            "instagram-ads"
+          ],
+          "rank": 1,
+          "latency_ms": 0.043,
+          "error": null
+        },
+        {
+          "case": "s1",
+          "expected": "spotify-listening",
+          "ids": [
+            "spotify-listening",
+            "spotify-network"
+          ],
+          "rank": 1,
+          "latency_ms": 0.049,
+          "error": null
+        },
+        {
+          "case": "s2",
+          "expected": "spotify-ads",
+          "ids": [
+            "spotify-ads"
+          ],
+          "rank": 1,
+          "latency_ms": 0.046,
+          "error": null
+        },
+        {
+          "case": "s3",
+          "expected": "spotify-network",
+          "ids": [
+            "spotify-network",
+            "spotify-security"
+          ],
+          "rank": 1,
+          "latency_ms": 0.054,
+          "error": null
+        },
+        {
+          "case": "s4",
+          "expected": "spotify-location",
+          "ids": [
+            "spotify-location"
+          ],
+          "rank": 1,
+          "latency_ms": 0.049,
+          "error": null
+        },
+        {
+          "case": "s5",
+          "expected": "spotify-security",
+          "ids": [
+            "spotify-security"
+          ],
+          "rank": 1,
+          "latency_ms": 0.046,
+          "error": null
+        },
+        {
+          "case": "g5",
+          "expected": "google-timeline",
+          "ids": [
+            "google-timeline",
+            "google-activity",
+            "google-ads"
+          ],
+          "rank": 1,
+          "latency_ms": 0.06,
+          "error": null
+        },
+        {
+          "case": "i6",
+          "expected": "instagram-security",
+          "ids": [
+            "instagram-security"
+          ],
+          "rank": 1,
+          "latency_ms": 0.045,
+          "error": null
+        },
+        {
+          "case": "s6",
+          "expected": "spotify-listening",
+          "ids": [
+            "spotify-listening",
+            "spotify-network",
+            "spotify-security"
+          ],
+          "rank": 1,
+          "latency_ms": 0.046,
+          "error": null
+        },
+        {
+          "case": "g6",
+          "expected": "google-activity",
+          "ids": [
+            "google-activity"
+          ],
+          "rank": 1,
+          "latency_ms": 0.044,
+          "error": null
+        },
+        {
+          "case": "i7",
+          "expected": "instagram-contacts",
+          "ids": [
+            "instagram-contacts",
+            "instagram-network",
+            "instagram-security",
+            "instagram-ads"
+          ],
+          "rank": 1,
+          "latency_ms": 0.057,
+          "error": null
+        },
+        {
+          "case": "s7",
+          "expected": "spotify-location",
+          "ids": [
+            "spotify-location",
+            "spotify-security"
+          ],
+          "rank": 1,
+          "latency_ms": 0.055,
+          "error": null
+        },
+        {
+          "case": "n1",
+          "expected": null,
+          "ids": [],
+          "rank": 0,
+          "latency_ms": 0.069,
+          "error": null
+        },
+        {
+          "case": "n2",
+          "expected": null,
+          "ids": [],
+          "rank": 0,
+          "latency_ms": 0.063,
+          "error": null
+        },
+        {
+          "case": "n3",
+          "expected": null,
+          "ids": [],
+          "rank": 0,
+          "latency_ms": 0.034,
+          "error": null
+        },
+        {
+          "case": "n4",
+          "expected": null,
+          "ids": [],
+          "rank": 0,
+          "latency_ms": 0.034,
+          "error": null
+        }
+      ]
+    },
+    "Holdout BM25": {
+      "top_1": 0.8571428571428571,
+      "recall_at_5": 1.0,
+      "mrr_at_5": 0.9285714285714286,
+      "correct_abstentions": 0,
+      "negative_count": 3,
+      "positive_count": 14,
+      "median_ms": 0.08,
+      "errors": 0,
+      "cases": [
+        {
+          "case": "h01",
+          "expected": "google-timeline",
+          "ids": [
+            "google-timeline",
+            "google-contacts",
+            "google-ads",
+            "google-activity"
+          ],
+          "rank": 1,
+          "latency_ms": 0.094,
+          "error": null
+        },
+        {
+          "case": "h02",
+          "expected": "google-activity",
+          "ids": [
+            "google-activity",
+            "google-contacts",
+            "google-timeline",
+            "google-ads",
+            "instagram-network"
+          ],
+          "rank": 1,
+          "latency_ms": 0.092,
+          "error": null
+        },
+        {
+          "case": "h03",
+          "expected": "google-contacts",
+          "ids": [
+            "google-contacts",
+            "instagram-contacts",
+            "google-timeline",
+            "google-ads",
+            "google-activity"
+          ],
+          "rank": 1,
+          "latency_ms": 0.078,
+          "error": null
+        },
+        {
+          "case": "h04",
+          "expected": "google-ads",
+          "ids": [
+            "google-ads",
+            "instagram-ads",
+            "google-activity",
+            "instagram-contacts",
+            "google-contacts"
+          ],
+          "rank": 1,
+          "latency_ms": 0.092,
+          "error": null
+        },
+        {
+          "case": "h05",
+          "expected": "instagram-contacts",
+          "ids": [
+            "google-contacts",
+            "instagram-contacts",
+            "instagram-messages",
+            "instagram-ads",
+            "instagram-network"
+          ],
+          "rank": 2,
+          "latency_ms": 0.076,
+          "error": null
+        },
+        {
+          "case": "h06",
+          "expected": "instagram-network",
+          "ids": [
+            "instagram-messages",
+            "instagram-network",
+            "instagram-ads",
+            "instagram-security",
+            "spotify-network"
+          ],
+          "rank": 2,
+          "latency_ms": 0.091,
+          "error": null
+        },
+        {
+          "case": "h07",
+          "expected": "instagram-messages",
+          "ids": [
+            "instagram-messages",
+            "instagram-ads",
+            "instagram-contacts",
+            "instagram-network",
+            "instagram-security"
+          ],
+          "rank": 1,
+          "latency_ms": 0.072,
+          "error": null
+        },
+        {
+          "case": "h08",
+          "expected": "instagram-security",
+          "ids": [
+            "instagram-security",
+            "spotify-location",
+            "instagram-network",
+            "spotify-security",
+            "instagram-ads"
+          ],
+          "rank": 1,
+          "latency_ms": 0.104,
+          "error": null
+        },
+        {
+          "case": "h09",
+          "expected": "instagram-ads",
+          "ids": [
+            "instagram-ads",
+            "spotify-network",
+            "spotify-listening",
+            "spotify-ads",
+            "instagram-messages"
+          ],
+          "rank": 1,
+          "latency_ms": 0.08,
+          "error": null
+        },
+        {
+          "case": "h10",
+          "expected": "spotify-listening",
+          "ids": [
+            "spotify-listening",
+            "spotify-network",
+            "spotify-ads",
+            "instagram-ads",
+            "google-ads"
+          ],
+          "rank": 1,
+          "latency_ms": 0.078,
+          "error": null
+        },
+        {
+          "case": "h11",
+          "expected": "spotify-ads",
+          "ids": [
+            "spotify-ads",
+            "google-ads",
+            "spotify-network",
+            "spotify-location",
+            "spotify-listening"
+          ],
+          "rank": 1,
+          "latency_ms": 0.075,
+          "error": null
+        },
+        {
+          "case": "h12",
+          "expected": "spotify-network",
+          "ids": [
+            "spotify-network",
+            "spotify-security",
+            "instagram-network",
+            "spotify-listening",
+            "google-contacts"
+          ],
+          "rank": 1,
+          "latency_ms": 0.092,
+          "error": null
+        },
+        {
+          "case": "h13",
+          "expected": "spotify-location",
+          "ids": [
+            "spotify-location",
+            "instagram-ads",
+            "google-timeline",
+            "spotify-network",
+            "spotify-ads"
+          ],
+          "rank": 1,
+          "latency_ms": 0.08,
+          "error": null
+        },
+        {
+          "case": "h14",
+          "expected": "spotify-security",
+          "ids": [
+            "spotify-security",
+            "google-activity",
+            "spotify-network",
+            "spotify-ads",
+            "spotify-location"
+          ],
+          "rank": 1,
+          "latency_ms": 0.089,
+          "error": null
+        },
+        {
+          "case": "h15",
+          "expected": null,
+          "ids": [
+            "instagram-messages",
+            "instagram-ads",
+            "instagram-contacts",
+            "instagram-network",
+            "instagram-security"
+          ],
+          "rank": 0,
+          "latency_ms": 0.078,
+          "error": null
+        },
+        {
+          "case": "h16",
+          "expected": null,
+          "ids": [
+            "spotify-network",
+            "spotify-ads",
+            "spotify-location",
+            "spotify-listening",
+            "spotify-security"
+          ],
+          "rank": 0,
+          "latency_ms": 0.131,
+          "error": null
+        },
+        {
+          "case": "h17",
+          "expected": null,
+          "ids": [
+            "google-contacts",
+            "google-timeline",
+            "google-ads",
+            "google-activity"
+          ],
+          "rank": 0,
+          "latency_ms": 0.074,
+          "error": null
+        }
+      ]
+    },
+    "Holdout metadata": {
+      "top_1": 0.9285714285714286,
+      "recall_at_5": 1.0,
+      "mrr_at_5": 0.9642857142857143,
+      "correct_abstentions": 3,
+      "negative_count": 3,
+      "positive_count": 14,
+      "median_ms": 0.05,
+      "errors": 0,
+      "cases": [
+        {
+          "case": "h01",
+          "expected": "google-timeline",
+          "ids": [
+            "google-timeline"
+          ],
+          "rank": 1,
+          "latency_ms": 0.054,
+          "error": null
+        },
+        {
+          "case": "h02",
+          "expected": "google-activity",
+          "ids": [
+            "google-activity"
+          ],
+          "rank": 1,
+          "latency_ms": 0.044,
+          "error": null
+        },
+        {
+          "case": "h03",
+          "expected": "google-contacts",
+          "ids": [
+            "google-contacts"
+          ],
+          "rank": 1,
+          "latency_ms": 0.042,
+          "error": null
+        },
+        {
+          "case": "h04",
+          "expected": "google-ads",
+          "ids": [
+            "google-ads",
+            "google-activity"
+          ],
+          "rank": 1,
+          "latency_ms": 0.05,
+          "error": null
+        },
+        {
+          "case": "h05",
+          "expected": "instagram-contacts",
+          "ids": [
+            "instagram-contacts"
+          ],
+          "rank": 1,
+          "latency_ms": 0.05,
+          "error": null
+        },
+        {
+          "case": "h06",
+          "expected": "instagram-network",
+          "ids": [
+            "instagram-messages",
+            "instagram-network",
+            "instagram-ads",
+            "instagram-security"
+          ],
+          "rank": 2,
+          "latency_ms": 0.055,
+          "error": null
+        },
+        {
+          "case": "h07",
+          "expected": "instagram-messages",
+          "ids": [
+            "instagram-messages"
+          ],
+          "rank": 1,
+          "latency_ms": 0.045,
+          "error": null
+        },
+        {
+          "case": "h08",
+          "expected": "instagram-security",
+          "ids": [
+            "instagram-security",
+            "instagram-network",
+            "instagram-ads",
+            "instagram-contacts"
+          ],
+          "rank": 1,
+          "latency_ms": 0.059,
+          "error": null
+        },
+        {
+          "case": "h09",
+          "expected": "instagram-ads",
+          "ids": [
+            "instagram-ads"
+          ],
+          "rank": 1,
+          "latency_ms": 0.046,
+          "error": null
+        },
+        {
+          "case": "h10",
+          "expected": "spotify-listening",
+          "ids": [
+            "spotify-listening",
+            "spotify-network"
+          ],
+          "rank": 1,
+          "latency_ms": 0.05,
+          "error": null
+        },
+        {
+          "case": "h11",
+          "expected": "spotify-ads",
+          "ids": [
+            "spotify-ads"
+          ],
+          "rank": 1,
+          "latency_ms": 0.048,
+          "error": null
+        },
+        {
+          "case": "h12",
+          "expected": "spotify-network",
+          "ids": [
+            "spotify-network",
+            "spotify-security",
+            "spotify-listening"
+          ],
+          "rank": 1,
+          "latency_ms": 0.056,
+          "error": null
+        },
+        {
+          "case": "h13",
+          "expected": "spotify-location",
+          "ids": [
+            "spotify-location"
+          ],
+          "rank": 1,
+          "latency_ms": 0.052,
+          "error": null
+        },
+        {
+          "case": "h14",
+          "expected": "spotify-security",
+          "ids": [
+            "spotify-security"
+          ],
+          "rank": 1,
+          "latency_ms": 0.052,
+          "error": null
+        },
+        {
+          "case": "h15",
+          "expected": null,
+          "ids": [],
+          "rank": 0,
+          "latency_ms": 0.802,
+          "error": null
+        },
+        {
+          "case": "h16",
+          "expected": null,
+          "ids": [],
+          "rank": 0,
+          "latency_ms": 0.072,
+          "error": null
+        },
+        {
+          "case": "h17",
+          "expected": null,
+          "ids": [],
+          "rank": 0,
+          "latency_ms": 0.041,
+          "error": null
+        }
+      ]
+    }
+  },
+  "archive_smoke_test": {
+    "findings_and_sources": true,
+    "location_ranked_first": true,
+    "activity_hour_peak": true,
+    "repeat_artist_inference": true
+  }
+}

@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GhostPrint · Footprint audit</title>
+  <link rel="stylesheet" href="/style.css">
+  <script src="/app.js" defer></script>
+  <script src="/live.js" defer></script>
+</head>
+<body>
+  <main>
+    <header>
+      <div class="brand">GhostPrint</div>
+      <h1>Personal data footprint</h1>
+      <p id="status" role="status">Loading your local audit…</p>
+    </header>
+    <section id="live-tools">
+      <h2>Live website activity</h2>
+      <p>Pair the browser companion and turn on recording to see the sites you open during this session.</p>
+      <details>
+        <summary>Pair browser companion</summary>
+        <p>Open the GhostPrint Companion extension and paste this session’s pairing code.</p>
+        <div class="controls">
+          <input id="pairing-code" type="password" readonly aria-label="Browser companion pairing code">
+          <button id="copy-pairing" type="button">Copy pairing code</button>
+          <button id="show-pairing" type="button">Show code</button>
+        </div>
+        <p id="pair-status" role="status"></p>
+      </details>
+      <div class="section-head">
+        <h3>Recent sites</h3>
+        <button id="clear-activity" type="button" disabled>Clear activity</button>
+      </div>
+      <div id="recent-sites" class="site-list"><p>Waiting for website activity.</p></div>
+    </section>
+    <section>
+      <h2>Ask about privacy</h2>
+      <form id="ask-form">
+        <label for="ask-site">Website hostname <span class="muted">(optional)</span></label>
+        <input type="text" id="ask-site" placeholder="example.com" maxlength="253" autocomplete="off">
+        <label for="ask-prompt">Your prompt</label>
+        <textarea id="ask-prompt" rows="3" maxlength="1500" placeholder="How do I block this site from using my microphone?"></textarea>
+        <div class="controls">
+          <button type="submit">Find privacy steps</button>
+          <button id="record-voice" type="button" disabled>Use microphone</button>
+          <label>Dictation language <select id="dictation-language" disabled><option value="">Automatic</option></select></label>
+          <button id="read-prompt" type="button" disabled>Read prompt aloud</button>
+          <button id="stop-reading" type="button" hidden>Stop reading</button>
+          <label>Read-aloud voice <select id="local-voices"><option value="">Automatic</option></select></label>
+        </div>
+        <p id="voice-status" role="status"></p>
+        <p id="lookup-translation" class="muted" hidden></p>
+        <audio id="spoken-audio" controls hidden></audio>
+        <p id="ask-status" role="status"></p>
+      </form>
+      <div id="ask-result"></div>
+    </section>
+    <section data-archive-section>
+      <div class="section-head"><h2>Footprint map</h2><button id="download" hidden>Download report</button></div>
+      <p>Each cell shows records found in the exports you supplied.</p>
+      <div class="table-wrap" id="map"></div>
+    </section>
+    <section id="patterns" data-archive-section hidden>
+      <h2>Activity patterns</h2>
+      <div id="charts" class="grid"></div>
+    </section>
+    <section id="model-demo" hidden>
+      <h2>Model-grounded demo</h2>
+      <div id="model-response"></div>
+    </section>
+    <section data-archive-section>
+      <div class="section-head">
+        <h2>Fix first</h2>
+        <label>Platform <select id="filter"><option value="">All platforms</option></select></label>
+      </div>
+      <p>Priority reflects the sensitivity and volume of the exported records.</p>
+      <div id="actions"></div>
+    </section>
+    <section data-archive-section>
+      <h2>Import coverage</h2>
+      <div id="coverage"></div>
+    </section>
+  </main>
+</body>
+</html>
