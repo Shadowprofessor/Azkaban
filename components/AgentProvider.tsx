@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { useConsent } from "@/lib/ui/consent";
 import { agentSocket } from "@/lib/ui/socket";
 import { Toasts } from "./Toasts";
+import { FlowDrawer } from "./radar/FlowDrawer";
 
 /** Opens the agent socket only after the operator has given consent. */
 export function AgentProvider({ children }: { children: React.ReactNode }) {
@@ -15,6 +16,7 @@ export function AgentProvider({ children }: { children: React.ReactNode }) {
   return (
     <>
       {children}
+      {consent && <FlowDrawer />}
       <Toasts />
     </>
   );

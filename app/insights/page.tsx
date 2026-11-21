@@ -130,7 +130,7 @@ export default function InsightsPage() {
             <p className="flex items-center gap-2 text-sm font-semibold tracking-wider text-danger uppercase">
               <ShieldAlert size={18} aria-hidden /> Canary tripped — proof of exfiltration
             </p>
-            <h2 className="mt-1 text-xl font-semibold">{i.title.replace(/^CANARY TRIPPED:s*/i, "")}</h2>
+            <h2 className="mt-1 text-xl font-semibold">{i.title.replace(/^CANARY TRIPPED:\s*/i, "")}</h2>
             <p className="mt-1 text-sm text-muted">{i.detail}</p>
             <Detail i={i} />
           </div>

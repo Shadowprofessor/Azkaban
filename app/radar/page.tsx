@@ -5,7 +5,6 @@ import { FlowList } from "@/components/radar/FlowList";
 import { Controls } from "@/components/radar/Controls";
 import { ExposurePanel } from "@/components/score/ExposurePanel";
 import { Filters } from "@/components/radar/Filters";
-import { FlowDrawer } from "@/components/radar/FlowDrawer";
 
 export default function RadarPage() {
   return (
@@ -23,7 +22,6 @@ export default function RadarPage() {
           </aside>
         </div>
       </div>
-      <FlowDrawer />
     </Guard>
   );
 }
