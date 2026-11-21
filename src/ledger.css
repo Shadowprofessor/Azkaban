@@ -961,12 +961,13 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .landing-proof article>b,.landing-proof article>small { color:#fff; }
 .landing-product {
   border:1px solid #36324f;
-  background:linear-gradient(150deg,#11131e 0%,#0c0e17 72%,#151126 100%);
+  background:linear-gradient(150deg,#19172b 0%,#171526 72%,#211a36 100%);
 }
 .landing-product::before {
-  opacity:.52;
-  background:radial-gradient(ellipse at 52% 48%,#37245f66 0,transparent 58%),linear-gradient(180deg,transparent 63%,#28204455 100%);
+  opacity:.72;
+  background:radial-gradient(ellipse at 52% 48%,#553d8b66 0,transparent 62%),linear-gradient(180deg,transparent 63%,#38305b55 100%);
 }
+.atlas-map { transform:translateY(-28px); }
 .atlas-top,.atlas-foot { color:#d0c9ed; }
 .atlas-labels { color:#c4bddf; }
 .atlas-top { border-color:#ffffff2b; }
