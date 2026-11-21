@@ -229,40 +229,20 @@ function ConsentGate({ agent, device, setDevice, socketUrl, onAccept, onSettings
     <main className="landing-main">
       <section className="landing-hero">
         <div className="landing-hero-copy">
-          <div className="hero-overline"><span>GHOSTPRINT / PRIVACY FORENSICS</span><span>01 / SEE THE SIGNAL</span></div>
-          <h1>Your applications<br/>leave <em>traces.</em></h1>
-          <p className="hero-deck">See where they connect, what signals appear, and what to review.</p>
+          <div className="hero-overline"><span>LOCAL PRIVACY FORENSICS</span><span>01 — OBSERVE</span></div>
+          <h1>See what leaves.<br/><em>Know where it goes.</em></h1>
+          <p className="hero-deck">A clear map of the data signals your apps send.</p>
           <div className="hero-actions"><button className="btn primary landing-cta" onClick={() => setShowSetup(true)}>Explore your footprint <ArrowRight size={15}/></button><a className="hero-text-link" href="#method">How it works <ArrowDownToLine size={13}/></a></div>
-          <div className="landing-trust"><LockKeyhole size={13}/> LOCAL OBSERVATION <span/> CLEAR EVIDENCE <span/> YOUR CHOICE</div>
+          <div className="landing-trust"><LockKeyhole size={13}/> ON YOUR DEVICE <span/> YOUR DATA, YOUR CALL</div>
         </div>
         <LandingProductVisual/>
-        <div className="hero-caption"><span>FIELD NOTE 01</span><span>ILLUSTRATIVE / NOT LIVE</span></div>
+        <div className="hero-caption"><span>FIG. 01 / A CONNECTION, MADE VISIBLE</span><span>ILLUSTRATIVE VIEW</span></div>
       </section>
       <section className="landing-proof" id="method">
-        <div className="section-index"><span>01 / METHOD</span><b>OBSERVE / TRACE / REVIEW</b></div>
-        <article><span className="proof-number">01</span><h2>Observe</h2><p>Connections from your device.</p></article>
-        <article><span className="proof-number">02</span><h2>Trace</h2><p>Apps, destinations, data signals.</p></article>
-        <article><span className="proof-number">03</span><h2>Review</h2><p>Evidence and possible next steps.</p></article>
-      </section>
-      <section className="landing-evidence" id="evidence">
-        <div className="evidence-editorial"><div className="section-index"><span>02 / RECORD</span></div><div><span className="proof-number">THE EVIDENCE</span><h2>Every signal,<br/>in context.</h2><p>A local record links an app, its destination, and the data signals reported.</p><button className="btn secondary" onClick={() => { onAccept(); }}>Open report <ArrowRight size={14}/></button></div></div>
-        <div className="evidence-schematic"><div className="schematic-head"><span>OBSERVED PATH</span><span>EXAMPLE</span></div><div className="schematic-flow"><div className="schematic-node"><small>APP</small><b>Your app</b></div><i className="schematic-link"><b/></i><div className="schematic-node destination"><small>DESTINATION</small><b>Receiving company</b></div></div><div className="schematic-data"><span>DATA SIGNAL</span><b>Identifier / redacted</b><small>Only when reported</small></div><div className="schematic-foot"><LockKeyhole size={12}/> Illustrative / not live data</div></div>
-      </section>
-      <section className="landing-toolkit">
-        <div className="section-index"><span>THE TOOLKIT</span><b>03</b></div>
-        <div className="toolkit-heading"><span className="proof-number">03 / RESPONSE</span><h2>From signal<br/>to evidence.</h2></div>
-        <div className="toolkit-list">
-          <article><span>01</span><div><b>Network activity</b><p>See app connections and destinations.</p></div><Radar size={17}/></article>
-          <article><span>02</span><div><b>Exposure analysis</b><p>Understand the exposure score.</p></div><Activity size={17}/></article>
-          <article><span>03</span><div><b>Block / re-run / compare</b><p>Block. Re-run. Compare.</p></div><Blocks size={17}/></article>
-          <article><span>04</span><div><b>Tamper-evident export</b><p>Export a local record with its integrity hash.</p></div><FileCheck2 size={17}/></article>
-          <article className="toolkit-in-progress"><span>05</span><div><b>Honeytoken canary</b><p>A test signal for tracing unexpected data exposure.</p></div><Fingerprint size={17}/><small>IN DEVELOPMENT</small></article>
-        </div>
-      </section>
-      <section className="landing-legal" id="legal-guidance">
-        <div className="legal-index"><BookOpenCheck size={18}/><span>04 / CONTEXT</span></div>
-        <div><span className="proof-number">04 / GUIDANCE</span><h2>Evidence first.<br/><em>Then decide.</em></h2><p>Signals are prompts to review, not legal conclusions.</p><a href="#method">Review the method <ArrowRight size={13}/></a></div>
-        <div className="legal-note"><span>KEEP IN MIND</span><b>Verify before you act.</b></div>
+        <div className="proof-intro"><span>THE METHOD / 02</span><h2>From signal<br/>to a clearer picture.</h2></div>
+        <article><span className="proof-number">01</span><b>Observe</b><small>Connections on your device.</small></article>
+        <article><span className="proof-number">02</span><b>Trace</b><small>Apps, companies, data signals.</small></article>
+        <article id="evidence"><span className="proof-number">03</span><b>Review</b><small>Evidence and practical options.</small></article>
       </section>
     </main>
     <footer className="consent-bottom"><span><Brand/><small>LOCAL PRIVACY FORENSICS</small></span><span>BUILT FOR YOUR OWN DEVICES <i/> YOUR EVIDENCE, YOUR DECISION</span><a href="#top" onClick={(event)=>{event.preventDefault();window.scrollTo({top:0,behavior:'smooth'});}}>Back to top</a></footer>
@@ -271,7 +251,7 @@ function ConsentGate({ agent, device, setDevice, socketUrl, onAccept, onSettings
 }
 
 function LandingProductVisual() {
-  return <figure className="landing-product" aria-label="Illustrative app to company data map"><div className="product-window"><div className="product-window-head"><div className="product-window-brand"><span className="mini-brand-mark">G</span><span>GHOSTPRINT <small>OBSERVATION MAP</small></span></div><span className="demo-label"><i/> SAMPLE VIEW</span></div><div className="product-window-meta"><span>SESSION / SAMPLE</span><span>LOCAL RECORD / REDACTED</span></div><div className="product-columns"><span>APPLICATION</span><span>DESTINATION</span><span>DATA SIGNAL</span></div><div className="product-route"><div className="route-node app"><span className="route-symbol">A</span><span><b>Sample app</b><small>Observed connection</small></span></div><div className="route-wire"><i/></div><div className="route-node company"><span className="route-symbol"><Globe2 size={15}/></span><span><b>Receiving service</b><small>Company attributed where known</small></span></div><div className="route-wire"><i/></div><div className="route-data"><span className="data-tag">DATA SIGNAL</span><b>Identifier reported</b><small>Value redacted</small></div></div><div className="product-foot"><div><span className="pulse-mark"/> RECORD OBSERVED</div><span>EXAMPLE / NOT CAPTURED DATA</span></div><div className="product-index">FIG. 01 <span>APP / DESTINATION / SIGNAL</span></div></div></figure>;
+  return <figure className="landing-product" aria-label="Illustration showing an app connection to a company and the data signal"><div className="atlas-top"><span>01 / SAMPLE TRACE</span><span><i/> LOCAL VIEW</span></div><div className="atlas-labels"><span>APPLICATION</span><span>DESTINATION</span><span>DATA SIGNAL</span></div><svg className="atlas-map" viewBox="0 0 720 300" role="img" aria-label="Sample app routes to an analytics company and an advertising company, carrying an identifier signal"><defs><pattern id="atlas-grid" width="36" height="36" patternUnits="userSpaceOnUse"><path d="M36 0H0V36" fill="none" stroke="currentColor" strokeOpacity=".09" strokeWidth="1"/></pattern></defs><rect width="720" height="300" fill="url(#atlas-grid)"/><path className="atlas-route atlas-route-one" d="M145 72 C245 72 256 114 357 114 S476 72 575 72"/><path className="atlas-route atlas-route-two" d="M145 72 C245 72 256 207 357 207 S476 224 575 224"/><path className="atlas-route atlas-route-three" d="M145 224 C245 224 256 114 357 114 S476 114 575 114"/><circle className="atlas-packet packet-one" r="4"><animateMotion dur="5s" repeatCount="indefinite" path="M145 72 C245 72 256 114 357 114 S476 72 575 72"/></circle><circle className="atlas-packet packet-two" r="4"><animateMotion dur="6.5s" begin="-3s" repeatCount="indefinite" path="M145 72 C245 72 256 207 357 207 S476 224 575 224"/></circle><g className="atlas-node app-node"><circle cx="145" cy="72" r="19"/><path d="M140 72h10M145 67v10"/></g><g className="atlas-node company-node"><circle cx="357" cy="114" r="19"/><path d="M349 114h16m-8-8v16"/></g><g className="atlas-node company-node secondary-node"><circle cx="357" cy="207" r="15"/><path d="M351 207h12m-6-6v12"/></g><g className="atlas-node data-node"><circle cx="575" cy="72" r="17"/><circle cx="575" cy="72" r="5"/></g><g className="atlas-node data-node secondary-node"><circle cx="575" cy="224" r="17"/><circle cx="575" cy="224" r="5"/></g><text x="145" y="119" textAnchor="middle">SOCIAL APP</text><text x="357" y="156" textAnchor="middle">ANALYTICS CO.</text><text x="357" y="244" textAnchor="middle">AD NETWORK</text><text x="575" y="112" textAnchor="middle">DEVICE ID</text><text x="575" y="264" textAnchor="middle">LOCATION</text></svg><div className="atlas-foot"><span><b>3</b> CONNECTIONS</span><span><b>2</b> COMPANIES</span><span>EXAMPLE / NOT LIVE DATA</span></div></figure>;
 }
 function ReportPage({ flows, score, verdicts, agent, device, send, selectFlow, openActivity, openApps, openGuidance }) {
   const report = useMemo(() => {
