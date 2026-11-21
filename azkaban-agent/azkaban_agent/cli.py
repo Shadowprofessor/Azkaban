@@ -210,13 +210,34 @@ def main(argv: list[str] | None = None) -> int:
             print("          Set AZK_NIM_MODEL in .env to one of them.", file=sys.stderr)
         elif ids:
             print(f"[azkaban] model is listed by the endpoint ({len(ids)} models available).")
+        print(f"[azkaban] probing which models this key may call...")
+        usable = []
+        for model in c.candidates()[:8]:
+            ok, why = c.try_model(model)
+            mark = "OK " if ok else "-- "
+            print(f"          {mark}{model:48} {'' if ok else why}")
+            if ok:
+                usable.append(model)
+        if not usable:
+            print("[azkaban] the key is valid but not entitled to any Nemotron chat model.\n"
+                  "          Open https://build.nvidia.com/nvidia/nemotron-3-ultra-550b-a55b,\n"
+                  "          sign in, accept the model terms and generate the key from that page,\n"
+                  "          then put the new key in .env. Verdicts fall back to local Ollama meanwhile.",
+                  file=sys.stderr)
+            return 3
+        best = usable[0]
+        if best != c.configured_model:
+            print(f"[azkaban] '{c.configured_model}' is refused for this key. The agent will fall back\n"
+                  f"          to '{best}' automatically; to make it permanent put this in .env:\n"
+                  f"              AZK_NIM_MODEL={best}")
+        c.cfg.nim_model = best
         try:
             out = c.ask("You are terse. Answer in plain text with no markdown.", args.prompt,
                         max_tokens=64, log_payload=False)
         except Exception as ex:
             print(f"[azkaban] chat failed: {type(ex).__name__}: {ex}", file=sys.stderr)
             return 3
-        print(f"[azkaban] model replied: {out!r}")
+        print(f"[azkaban] {best} replied: {out!r}")
         return 0
 
     if args.cmd == "fetch-geo":

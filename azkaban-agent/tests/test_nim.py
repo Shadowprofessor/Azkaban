@@ -202,3 +202,72 @@ def test_a_non_400_error_is_not_retried(monkeypatch):
     with pytest.raises(RuntimeError, match="500"):
         nim.NimClient(cfg()).chat([], log_payload=False, json_object=True)
     assert calls["n"] == 1, "a 500 is not a payload problem; retrying is pointless"
+
+
+# ------------------------------------------------------------------ entitlement fallback
+def scripted_endpoint(monkeypatch, entitled: set[str], listed: list[str]):
+    """An endpoint where the key is valid but only some models may be called."""
+    calls: list[str] = []
+
+    def fake_post(url, *, cfg=None, timeout=None, json=None, headers=None):
+        calls.append(json["model"])
+        if json["model"] in entitled:
+            return FakeResponse(200, {"choices": [{"message": {"content": "OK"}}]})
+        return FakeResponse(403, {"detail": "Authorization failed"})
+
+    def fake_get(url, *, cfg=None, timeout=None, headers=None):
+        return FakeResponse(200, {"data": [{"id": m} for m in listed]})
+
+    monkeypatch.setattr(nim, "http_post", fake_post)
+    monkeypatch.setattr(nim, "http_get", fake_get)
+    return calls
+
+
+def test_a_refused_model_falls_back_to_one_the_key_may_use(monkeypatch):
+    # The real failure seen on Windows: key accepted, model listed, chat -> 403.
+    listed = ["nvidia/nemotron-3-ultra-550b-a55b", "nvidia/llama-3.3-nemotron-super-49b-v1.5"]
+    scripted_endpoint(monkeypatch, entitled={"nvidia/llama-3.3-nemotron-super-49b-v1.5"}, listed=listed)
+    c = nim.NimClient(cfg())
+    assert c.chat([{"role": "user", "content": "hi"}], log_payload=False) == "OK"
+    assert c.model == "nvidia/llama-3.3-nemotron-super-49b-v1.5"      # remembered for later calls
+
+
+def test_the_fallback_prefers_the_strongest_entitled_model(monkeypatch):
+    listed = ["nvidia/nemotron-3-ultra-550b-a55b", "nvidia/llama-3.1-nemotron-ultra-253b-v1",
+              "nvidia/nvidia-nemotron-nano-9b-v2"]
+    scripted_endpoint(monkeypatch, entitled={"nvidia/llama-3.1-nemotron-ultra-253b-v1",
+                                             "nvidia/nvidia-nemotron-nano-9b-v2"}, listed=listed)
+    c = nim.NimClient(cfg())
+    assert c.find_working_model() == "nvidia/llama-3.1-nemotron-ultra-253b-v1"
+
+
+def test_models_the_endpoint_does_not_list_are_not_tried(monkeypatch):
+    calls = scripted_endpoint(monkeypatch, entitled=set(), listed=["nvidia/nemotron-3-ultra-550b-a55b"])
+    nim.NimClient(cfg()).find_working_model()
+    assert set(calls) == {"nvidia/nemotron-3-ultra-550b-a55b"}
+
+
+def test_the_search_runs_once_per_process(monkeypatch):
+    calls = scripted_endpoint(monkeypatch, entitled=set(),
+                              listed=["nvidia/nemotron-3-ultra-550b-a55b", "nvidia/nvidia-nemotron-nano-9b-v2"])
+    c = nim.NimClient(cfg())
+    for _ in range(3):
+        with pytest.raises(RuntimeError, match="403"):
+            c.chat([], log_payload=False)
+    probes = [m for m in calls if m == "nvidia/nvidia-nemotron-nano-9b-v2"]
+    assert len(probes) == 1, "a refused key must not re-probe every model on every verdict"
+
+
+def test_when_nothing_is_entitled_the_real_error_surfaces(monkeypatch):
+    scripted_endpoint(monkeypatch, entitled=set(), listed=["nvidia/nemotron-3-ultra-550b-a55b"])
+    with pytest.raises(RuntimeError, match="403.*Authorization failed"):
+        nim.NimClient(cfg()).chat([], log_payload=False)
+
+
+def test_an_entitled_configured_model_is_used_without_probing(monkeypatch):
+    calls = scripted_endpoint(monkeypatch, entitled={"nvidia/nemotron-3-ultra-550b-a55b"},
+                              listed=["nvidia/nemotron-3-ultra-550b-a55b", "nvidia/nvidia-nemotron-nano-9b-v2"])
+    c = nim.NimClient(cfg())
+    c.chat([], log_payload=False)
+    assert calls == ["nvidia/nemotron-3-ultra-550b-a55b"]
+    assert c.model == "nvidia/nemotron-3-ultra-550b-a55b"

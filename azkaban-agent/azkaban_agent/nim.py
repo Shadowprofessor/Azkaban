@@ -25,6 +25,20 @@ from .net import http_get, http_post
 #: Model id on https://integrate.api.nvidia.com/v1 (free prototyping endpoint).
 NEMOTRON_ULTRA = "nvidia/nemotron-3-ultra-550b-a55b"
 BASE_URL = "https://integrate.api.nvidia.com/v1"
+
+#: Preference order when the configured model is refused. A key can be valid (GET /models
+#: works) yet not entitled to a particular model, which NVIDIA reports as HTTP 403
+#: "Authorization failed". Strongest reasoning first. Ids the endpoint does not list are
+#: skipped, and any other nemotron model it lists is tried after these.
+FALLBACK_MODELS = (
+    "nvidia/nemotron-3-ultra-550b-a55b",
+    "nvidia/llama-3.1-nemotron-ultra-253b-v1",
+    "nvidia/nemotron-3-super-120b-a12b",
+    "nvidia/llama-3.3-nemotron-super-49b-v1.5",
+    "nvidia/llama-3.3-nemotron-super-49b-v1",
+    "nvidia/nvidia-nemotron-nano-9b-v2",
+    "nvidia/llama-3.1-nemotron-70b-instruct",
+)
 PROBE_TTL_S = 60.0
 
 _FENCE = re.compile(r"```[a-zA-Z0-9_+-]*\n?")
@@ -109,11 +123,17 @@ class NimClient:
     def __init__(self, cfg):
         self.cfg = cfg
         self._probe: tuple[float, bool] = (0.0, False)
+        self._fallback: str | None = None      # model that worked after a 403
+        self._searched = False                 # search at most once per run
 
     # ------------------------------------------------------------------ config
     @property
-    def model(self) -> str:
+    def configured_model(self) -> str:
         return self.cfg.nim_model or NEMOTRON_ULTRA
+
+    @property
+    def model(self) -> str:
+        return self._fallback or self.configured_model
 
     @property
     def configured(self) -> bool:
@@ -199,6 +219,16 @@ class NimClient:
             print(f"[azkaban] endpoint rejected '{key}'; retrying without it", file=sys.stderr, flush=True)
             p.pop(key, None)
             r = self._post(p, timeout)
+        if r.status_code == 403 and not self._searched:
+            alt = self.find_working_model()
+            if alt and alt != p.get("model"):
+                print(f"[azkaban] key is not entitled to {p.get('model')}; using {alt} instead "
+                      f"(set AZK_NIM_MODEL={alt} in .env to make this permanent)",
+                      file=sys.stderr, flush=True)
+                p["model"] = alt
+                if not is_nemotron(alt):
+                    p.pop("chat_template_kwargs", None)
+                r = self._post(p, timeout)
         if r.status_code >= 400:
             # requests' own message hides the body, which is where NVIDIA says what is
             # actually wrong (bad key, unknown model, quota). Surface it.
@@ -207,6 +237,45 @@ class NimClient:
             return _content(r.json())
         except ValueError:
             raise RuntimeError(f"NIM returned non-JSON: {(r.text or '')[:300]}") from None
+
+    # ------------------------------------------------------------------ entitlement
+    def candidates(self) -> list[str]:
+        """Models worth trying, preferred first, limited to what the endpoint lists."""
+        listed = self.models()
+        order = [self.configured_model] + [m for m in FALLBACK_MODELS if m != self.configured_model]
+        if listed:
+            known = set(listed)
+            order = [m for m in order if m in known]
+            order += [m for m in listed if "nemotron" in m.lower() and m not in order]
+        return list(dict.fromkeys(order))
+
+    def try_model(self, model: str, timeout: int = 45) -> tuple[bool, str]:
+        """One tiny completion against `model`. (ok, short reason)."""
+        p = {"model": model, "messages": [{"role": "user", "content": "Reply with: OK"}],
+             "max_tokens": 8, "temperature": 0.0, "stream": False}
+        if is_nemotron(model):
+            p["chat_template_kwargs"] = {"enable_thinking": False}
+        try:
+            r = self._post(p, timeout)
+            if r.status_code in (400, 422) and "chat_template_kwargs" in p:
+                p.pop("chat_template_kwargs")
+                r = self._post(p, timeout)
+        except Exception as ex:
+            return False, f"{type(ex).__name__}"
+        if r.status_code == 200:
+            return True, "ok"
+        return False, f"HTTP {r.status_code}: {_detail(r)[:80]}"
+
+    def find_working_model(self, limit: int = 8) -> str | None:
+        """First candidate this key can actually call. Cached for the rest of the run."""
+        self._searched = True
+        for model in self.candidates()[:limit]:
+            ok, _ = self.try_model(model)
+            if ok:
+                if model != self.configured_model:
+                    self._fallback = model
+                return model
+        return None
 
     def ask(self, system: str, user: str, **kw) -> str:
         """One-shot prompt returning sanitised plain text."""
