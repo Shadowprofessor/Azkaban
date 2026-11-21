@@ -1,7 +1,8 @@
 import { defineBackground } from "wxt/utils/define-background";
 import { browser } from "wxt/browser";
 import { hostOf, isWebUrl, registrable } from "../lib/domain";
-import { appendFlow, type ExtFlow } from "../lib/store";
+import { appendFlow, attachFindings, getSettings, type ExtFlow } from "../lib/store";
+import { scan, toHits } from "../lib/pii";
 import { lookup } from "../lib/trackers";
 import { bumpTab, resetTab } from "../lib/tabs";
 
@@ -15,6 +16,33 @@ function bodySize(details: { requestBody?: { raw?: { bytes?: ArrayBuffer }[]; fo
   if (rb.raw) return rb.raw.reduce((n, p) => n + (p.bytes?.byteLength ?? 0), 0);
   if (rb.formData) return JSON.stringify(rb.formData).length;
   return 0;
+}
+
+// Body scanning: raw bodies live only for the duration of this function. Only redacted
+// findings are stored.
+async function handleBody(tabId: number, site: string, url: string, method: string, body: string) {
+  try {
+    const settings = await getSettings();
+    const { findings, hashedHits } = await scan(url, body, new Set(settings.knownHashes));
+    if (!findings.length) return;
+    const u = new URL(url);
+    const { tracker, company } = lookup(u.hostname);
+    const thirdParty = registrable(u.hostname) !== site;
+    const flow: ExtFlow = {
+      id: `ext-body-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      ts: Date.now(), app: site, host: u.hostname, method, path: u.pathname, ip: "", country: "ZZ",
+      company, tracker, decrypted: true, pii: toHits(findings), severity: 0, tcf: null,
+      bytes: body.length, thirdParty, source: "extension", initiator: site,
+      findings: hashedHits ? [{ kind: "hashed_pii", detail: `${hashedHits} hashed identifier(s) of yours` }] : [],
+    };
+    await attachFindings(flow);
+    await bumpTab(tabId, site, (t) => {
+      t.pii += findings.length;
+      if (hashedHits) t.hashed = (t.hashed ?? 0) + hashedHits;
+    });
+  } catch {
+    /* one bad body never breaks the worker */
+  }
 }
 
 export default defineBackground({
@@ -78,10 +106,14 @@ export default defineBackground({
     browser.tabs.onRemoved.addListener((tabId) => void resetTab(tabId));
 
     browser.runtime.onMessage.addListener((msg: unknown, sender) => {
-      const m = msg as { type?: string; flagged?: boolean; surfaces?: number; frame?: string };
+      const m = msg as { type?: string; flagged?: boolean; surfaces?: number; frame?: string; url?: string; method?: string; body?: string };
       const tabId = sender.tab?.id;
       if (tabId === undefined || tabId < 0 || !sender.tab?.url) return undefined;
       const site = registrable(hostOf(sender.tab.url));
+      if (m.type === "net" && typeof m.url === "string" && isWebUrl(m.url)) {
+        void handleBody(tabId, site, m.url, m.method ?? "GET", typeof m.body === "string" ? m.body : "");
+        return undefined;
+      }
       if (m.type === "fingerprint") {
         void bumpTab(tabId, site, (t) => {
           t.fingerprint = Math.max(t.fingerprint, Number(m.surfaces) || 0);

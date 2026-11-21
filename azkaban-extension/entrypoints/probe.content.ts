@@ -124,5 +124,121 @@ export default defineContentScript({
     for (const p of ["width", "height", "colorDepth", "pixelDepth", "availWidth", "availHeight"]) {
       wrapGetter(g.Screen?.prototype, p, "screen");
     }
+
+    // ---------------------------------------------------------------- outbound bodies
+    // fetch / XHR / sendBeacon: copy the URL and (bounded) body, then call the original.
+    const MAX_BODY = 16 * 1024;
+    const report = (url: unknown, method: string, body: string) => {
+      try {
+        const u = String(url ?? "").slice(0, 4096);
+        if (!u || (!body && !u.includes("?"))) return;
+        post({ kind: "net", url: new URL(u, location.href).href, method: method.toUpperCase(), body: body.slice(0, MAX_BODY), ts: Date.now() });
+      } catch {
+        /* ignore */
+      }
+    };
+    const utf8 = (b: ArrayBuffer | ArrayBufferView) => {
+      try {
+        const view = b instanceof ArrayBuffer ? new Uint8Array(b, 0, Math.min(b.byteLength, MAX_BODY)) : new Uint8Array(b.buffer, b.byteOffset, Math.min(b.byteLength, MAX_BODY));
+        return new TextDecoder().decode(view);
+      } catch {
+        return "";
+      }
+    };
+    // Returns the body text, or a promise for types that must be read asynchronously.
+    // Never consumes a stream the page still needs.
+    const bodyOf = (b: unknown): string | Promise<string> => {
+      try {
+        if (b == null) return "";
+        if (typeof b === "string") return b.slice(0, MAX_BODY);
+        if (b instanceof URLSearchParams) return b.toString().slice(0, MAX_BODY);
+        if (b instanceof FormData) {
+          const p = new URLSearchParams();
+          for (const [k, v] of b) if (typeof v === "string") p.append(k, v);
+          return p.toString().slice(0, MAX_BODY);
+        }
+        if (b instanceof ArrayBuffer || ArrayBuffer.isView(b)) return utf8(b as ArrayBuffer);
+        if (b instanceof Blob && b.size <= 4 * MAX_BODY) return b.slice(0, MAX_BODY).text().catch(() => "");
+      } catch {
+        /* ignore */
+      }
+      return "";
+    };
+    const emit = (url: unknown, method: string, body: unknown) => {
+      try {
+        const t = bodyOf(body);
+        if (typeof t === "string") report(url, method, t);
+        else void t.then((s) => report(url, method, s));
+      } catch {
+        /* ignore */
+      }
+    };
+
+    try {
+      const origFetch = window.fetch;
+      if (typeof origFetch === "function") {
+        const patched = function (this: unknown, input: RequestInfo | URL, init?: RequestInit) {
+          try {
+            if (input instanceof Request) {
+              const method = init?.method ?? input.method;
+              if (init?.body !== undefined) emit(input.url, method, init.body);
+              else if (!input.bodyUsed && method !== "GET" && method !== "HEAD") {
+                input.clone().text().then((s) => report(input.url, method, s), () => report(input.url, method, ""));
+              } else report(input.url, method, "");
+            } else {
+              emit(String(input), init?.method ?? "GET", init?.body);
+            }
+          } catch {
+            /* ignore */
+          }
+          return origFetch.apply(this as typeof window, [input, init] as [RequestInfo | URL, RequestInit | undefined]);
+        };
+        Object.defineProperty(patched, "name", { value: "fetch" });
+        window.fetch = patched as typeof window.fetch;
+      }
+    } catch {
+      /* leave fetch alone */
+    }
+
+    try {
+      const meta = new WeakMap<XMLHttpRequest, { method: string; url: string }>();
+      const origOpen = XMLHttpRequest.prototype.open;
+      const origSend = XMLHttpRequest.prototype.send;
+      XMLHttpRequest.prototype.open = function (this: XMLHttpRequest, method: string, url: string | URL, ...rest: unknown[]) {
+        try {
+          meta.set(this, { method, url: String(url) });
+        } catch {
+          /* ignore */
+        }
+        return (origOpen as (...a: unknown[]) => void).call(this, method, url, ...rest);
+      } as typeof XMLHttpRequest.prototype.open;
+      XMLHttpRequest.prototype.send = function (this: XMLHttpRequest, body?: Document | XMLHttpRequestBodyInit | null) {
+        try {
+          const m = meta.get(this);
+          if (m) emit(m.url, m.method, body);
+        } catch {
+          /* ignore */
+        }
+        return origSend.call(this, body);
+      };
+    } catch {
+      /* leave XHR alone */
+    }
+
+    try {
+      const origBeacon = Navigator.prototype.sendBeacon;
+      if (typeof origBeacon === "function") {
+        Navigator.prototype.sendBeacon = function (this: Navigator, url: string | URL, data?: BodyInit | null) {
+          try {
+            emit(String(url), "POST", data);
+          } catch {
+            /* ignore */
+          }
+          return origBeacon.call(this, url, data);
+        };
+      }
+    } catch {
+      /* leave sendBeacon alone */
+    }
   },
 });

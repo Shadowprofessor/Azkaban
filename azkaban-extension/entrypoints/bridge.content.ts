@@ -15,6 +15,12 @@ export default defineContentScript({
       try {
         if (ev.source !== window || !ev.data || ev.data[CHANNEL] !== true) return;
         const d = ev.data as Record<string, unknown>;
+        if (d.kind === "net" && typeof d.url === "string" && typeof d.body === "string") {
+          void browser.runtime
+            .sendMessage({ type: "net", url: d.url.slice(0, 4096), method: String(d.method ?? "GET").slice(0, 16), body: d.body.slice(0, 16384) })
+            .catch(() => undefined);
+          return;
+        }
         if (d.kind === "fingerprint") {
           const surfaces = Math.max(0, Math.min(6, Number(d.surfaces) || 0));
           void browser.runtime

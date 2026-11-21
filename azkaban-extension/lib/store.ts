@@ -47,6 +47,15 @@ export async function getFlows(): Promise<ExtFlow[]> {
   return (r.flows as ExtFlow[]) ?? [];
 }
 
+// All read-modify-write on the flow ring goes through one chain, so concurrent events
+// (webRequest flush, body findings, updates) can never overwrite each other.
+let lock: Promise<unknown> = Promise.resolve();
+function locked<T>(fn: () => Promise<T>): Promise<T> {
+  const run = lock.then(fn, fn);
+  lock = run.catch(() => undefined);
+  return run;
+}
+
 // Writes are batched: a short-lived queue flushed every 300ms. If the SW is killed in that
 // window, at most those few flows are lost — acceptable for a live view.
 let queue: ExtFlow[] = [];
@@ -57,8 +66,12 @@ export function appendFlow(f: ExtFlow): void {
   if (!timer) timer = setTimeout(flush, 300);
 }
 
-async function flush(): Promise<void> {
+function flush(): Promise<void> {
   timer = null;
+  return locked(flushUnlocked);
+}
+
+async function flushUnlocked(): Promise<void> {
   if (!queue.length) return;
   const batch = queue;
   queue = [];
@@ -67,14 +80,31 @@ async function flush(): Promise<void> {
   await browser.storage.session.set({ flows: next });
 }
 
-export async function updateFlow(id: string, patch: Partial<ExtFlow>): Promise<void> {
-  await flush();
+export function updateFlow(id: string, patch: Partial<ExtFlow>): Promise<void> {
+  return locked(async () => {
+  await flushUnlocked();
   const flows = await getFlows();
   const i = flows.findIndex((f) => f.id === id);
   if (i >= 0) {
     flows[i] = { ...flows[i], ...patch } as ExtFlow;
     await browser.storage.session.set({ flows });
   }
+  });
+}
+
+/** Attach redacted findings to the matching captured request, or record a new flow. */
+export function attachFindings(base: ExtFlow, maxAgeMs = 15_000): Promise<void> {
+  return locked(async () => {
+  await flushUnlocked();
+  const flows = await getFlows();
+  const i = flows.slice(0, 200).findIndex(
+    (f) => f.host === base.host && f.path === base.path && !f.pii.length && Math.abs(f.ts - base.ts) < maxAgeMs,
+  );
+  const hit = i >= 0 ? flows[i] : undefined;
+  if (hit) flows[i] = { ...hit, pii: base.pii, severity: Math.max(hit.severity, base.severity), findings: base.findings };
+  else flows.unshift(base);
+  await browser.storage.session.set({ flows: flows.slice(0, RING_MAX) });
+  });
 }
 
 export async function wipeAll(): Promise<void> {

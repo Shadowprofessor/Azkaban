@@ -11,6 +11,7 @@ export interface TabStats {
   fingerprint: number; // distinct fingerprinting surfaces touched (0-6)
   fpFlagged?: boolean; // 5+ surfaces within 2s
   fpFrames?: string[];
+  hashed?: number; // outgoing hashes of the user's own identifiers
   score?: number;
   grade?: string;
 }
