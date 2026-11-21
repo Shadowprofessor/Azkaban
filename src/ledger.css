@@ -958,6 +958,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .consent-bottom { border-color:#29283a; }
 .consent-screen { padding-inline:clamp(18px,3vw,48px); }
 .landing-main,.consent-bottom { width:100%; }
+.landing-proof article>b,.landing-proof article>small { color:#fff; }
 .landing-product {
   border:1px solid #36324f;
   background:linear-gradient(150deg,#11131e 0%,#0c0e17 72%,#151126 100%);
