@@ -8,6 +8,7 @@ from collections import OrderedDict
 from . import __version__
 from .config import Config
 from .pipeline import Pipeline
+from .blocklist import Blocklist, host_blocked
 from .idle import IdleDetector
 from .insights import InsightEngine
 from .legal import LegalEngine, build_facts, facts_key
@@ -45,6 +46,12 @@ class Agent:
         self.verdict_q: asyncio.Queue | None = None
         self.pending_keys: set[str] = set()
         self.auto_verdict_min = 60
+        self.blocklist = Blocklist()
+        self._blocklist_dirty = False
+        self._replay_args: tuple | None = None
+        self._replay_task: asyncio.Task | None = None
+        if self.addon:
+            self.addon.on_blocked = self.on_blocked
 
     # ------------------------------------------------------------------ status
     def status(self) -> dict:
@@ -70,6 +77,10 @@ class Agent:
             return
         if self.idle is not None and "tsi" not in raw:
             raw["tsi"] = round(self.idle.seconds() or 0.0, 1)
+        if self.blocklist.blocked and host_blocked(raw.get("host", ""), self.blocklist.blocked):
+            # Replay: emulate the proxy refusing a blocked destination.
+            self.on_blocked(raw.get("host", ""))
+            return
         if self.recorder:
             self.recorder.write(raw)
         try:
@@ -79,6 +90,9 @@ class Agent:
             return
         self.flow_count += 1
         self.exposure.add(self.pipeline.fact(enriched))
+        self.blocklist.observe(enriched.flow)
+        if self.blocklist.applied:
+            self._blocklist_dirty = True
         self.hub.publish({"type": "flow", "flow": enriched.flow.to_dict()})
         self.recent[enriched.flow.id] = enriched
         if len(self.recent) > 2000:
@@ -134,9 +148,53 @@ class Agent:
                 self.hub.broadcast_status()
             await asyncio.sleep(15)
 
+    # ------------------------------------------------------------------ blocklist
+    def on_blocked(self, host: str) -> None:
+        self.blocklist.prevented += 1
+        self._blocklist_dirty = True
+
+    def _blocklist_command(self, action: str) -> None:
+        bl = self.blocklist
+        if action == "generate":
+            bl.generate()
+        elif action == "apply":
+            before = self.exposure.score().total
+            blocked = bl.apply(before)
+            if self.addon:
+                self.addon.blocked = blocked
+            self.exposure.reset()                         # recheck window starts clean
+            log(f"Patronus applied: {len(blocked)} hosts blocked; baseline {bl.baseline} leaks, score {before}")
+            if self.mode == "replay" and self._replay_args:
+                self._restart_replay()                    # same session again = apples-to-apples
+        elif action == "clear":
+            bl.clear()
+            if self.addon:
+                self.addon.blocked = set()
+        else:
+            self.hub.error("bad_request", f"blocklist action must be generate|apply|clear, got {action!r}")
+            return
+        self.hub.publish(bl.message(), keep=False)
+
+    def _recheck_insight(self) -> dict | None:
+        bl = self.blocklist
+        r = bl.recheck()
+        if r is None:
+            return None
+        after = self.exposure.score().total
+        return {"type": "insight", "key": "recheck", "kind": "recheck",
+                "level": "info" if r["delta"] <= 0 else "warn",
+                "title": f"Patronus: leaks {r['baseline']} → {r['current']}, exposure {bl.baseline_score:.0f} → {after:.0f}",
+                "detail": f"{bl.prevented} requests to {len(bl.blocked)} blocked hosts were refused since the "
+                          "blocklist was applied.",
+                "data": {**r, "scoreBefore": bl.baseline_score, "scoreAfter": after, "prevented": bl.prevented,
+                         "blockedHosts": len(bl.blocked)}}
+
     # ------------------------------------------------------------------ commands
     async def on_command(self, cmd: dict) -> None:
         t = cmd["type"]
+        if t == "blocklist":
+            self._blocklist_command(str(cmd.get("action", "generate")))
+            return
         if t == "analyze":
             e = self.recent.get(str(cmd.get("flowId", "")))
             if e is None:
@@ -168,6 +226,12 @@ class Agent:
                     self.hub.publish(self.exposure.message(), keep=False)
                 except Exception as e:
                     self.hub.error("score", str(e))
+            if self._blocklist_dirty:
+                self._blocklist_dirty = False
+                self.hub.publish(self.blocklist.message(), keep=False)
+                ins = self._recheck_insight()
+                if ins:
+                    self.hub.publish(ins)
 
     async def _insight_loop(self) -> None:
         tick = 0
@@ -216,12 +280,23 @@ class Agent:
             while not self.hub.clients and waited < wait_client:
                 await asyncio.sleep(0.25)
                 waited += 0.25
-            log(f"replaying {path} at {speed}x")
-            n = await replay(path, self.on_raw, speed=speed, loop_forever=loop_forever,
-                             should_run=lambda: self.capturing)
-            log(f"replay finished: {n} flows. Socket stays up; Ctrl+C to exit.")
-            self.capturing = False
-            self.hub.broadcast_status()
+            self._replay_args = (path, speed, loop_forever)
+            self._restart_replay()
             await asyncio.Event().wait()
         finally:
             ws.close()
+
+    def _restart_replay(self) -> None:
+        if self._replay_task and not self._replay_task.done():
+            self._replay_task.cancel()
+        self.capturing = True
+        self._replay_task = asyncio.create_task(self._replay_once(*self._replay_args))
+        self.hub.broadcast_status()
+
+    async def _replay_once(self, path: str, speed: float, loop_forever: bool) -> None:
+        log(f"replaying {path} at {speed}x")
+        n = await replay(path, self.on_raw, speed=speed, loop_forever=loop_forever,
+                         should_run=lambda: self.capturing)
+        log(f"replay finished: {n} flows. Socket stays up; Ctrl+C to exit.")
+        self.capturing = False
+        self.hub.broadcast_status()

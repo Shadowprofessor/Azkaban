@@ -41,7 +41,7 @@ export interface BlocklistMsg {
   hosts: string[];
   formats: { hosts: string; pihole: string; nextdns: string; pf: string };
   applied: boolean;
-  /** Present after apply-and-recheck: leaks before vs after. */
+  /** Present after apply-and-recheck: leaks before vs after. delta = current - baseline (negative = fewer leaks). */
   recheck: { baseline: number; current: number; delta: number } | null;
 }
 

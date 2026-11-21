@@ -14,6 +14,7 @@ from typing import Callable
 from mitmproxy import connection, http, options, tls
 from mitmproxy.tools import dump
 
+from .blocklist import host_blocked
 from .procmap import ProcessResolver
 from .safety import require_loopback
 
@@ -48,6 +49,7 @@ class CaptureAddon:
         self.passthrough: set[str] = set()      # hosts that pin certs
         self.blocked: set[str] = set()          # enforced blocklist (Phase 9)
         self.paused = False
+        self.on_blocked: Callable[[str], None] | None = None
 
     # ---------------------------------------------------------- attribution
     async def client_connected(self, client: connection.Client) -> None:
@@ -62,8 +64,18 @@ class CaptureAddon:
         return self.apps.get(client.id, "unknown")
 
     def _is_blocked(self, host: str) -> bool:
-        host = host.lower()
-        return any(host == b or host.endswith("." + b) for b in self.blocked)
+        return bool(self.blocked) and host_blocked(host, self.blocked)
+
+    def _refuse(self, flow: http.HTTPFlow, host: str) -> None:
+        flow.response = http.Response.make(451, b"blocked by azkaban patronus")
+        flow.metadata["azk_blocked"] = True
+        if self.on_blocked:
+            self.on_blocked(host)
+
+    def http_connect(self, flow: http.HTTPFlow) -> None:
+        # Blocks the tunnel itself, so pinned apps are covered too.
+        if self._is_blocked(flow.request.host):
+            self._refuse(flow, flow.request.host)
 
     # ---------------------------------------------------------- pinning fallback
     def tls_clienthello(self, data: tls.ClientHelloData) -> None:
@@ -101,9 +113,8 @@ class CaptureAddon:
 
     # ---------------------------------------------------------- decrypted flows
     def request(self, flow: http.HTTPFlow) -> None:
-        if self.blocked and self._is_blocked(flow.request.pretty_host):
-            flow.response = http.Response.make(451, b"blocked by azkaban patronus")
-            flow.metadata["azk_blocked"] = True
+        if self._is_blocked(flow.request.pretty_host):
+            self._refuse(flow, flow.request.pretty_host)
 
     def response(self, flow: http.HTTPFlow) -> None:
         self._emit_http(flow)
