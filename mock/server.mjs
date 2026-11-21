@@ -57,14 +57,11 @@ function score() {
 }
 
 function verdict(flow) {
-  const status = flow.pii.length && flow.severity >= 70 ? 'violation' : flow.pii.length ? 'questionable' : 'compliant';
   return {
     flowId: flow.id,
-    status,
-    reasoning: flow.pii.length
-      ? `${flow.pii.map((hit) => hit.type.toUpperCase()).join(', ')} signal${flow.pii.length > 1 ? 's were' : ' was'} observed in a transfer to ${flow.company || flow.host}. The destination jurisdiction is ${flow.country}. Review purpose and consent context before drawing a conclusion.`
-      : `No personal-data signal was reported for this observed transfer. A complete legal assessment depends on the processing purpose and consent context.`,
-    citations: [{ source: 'Digital Personal Data Protection Act, 2023', section: flow.pii.length ? 'Section 6(1) · Consent' : 'Section 8 · General obligations', url: 'https://www.meity.gov.in/data-protection-framework' }],
+    status: 'questionable',
+    reasoning: `Synthetic demo finding: ${flow.pii.length ? `${flow.pii.map((hit) => hit.type.toUpperCase()).join(', ')} signal${flow.pii.length > 1 ? 's were' : ' was'} reported in traffic to ${flow.company || flow.host}.` : 'No personal-data signal was reported in this flow.'} This technical observation alone does not establish a legal violation or compliance. Purpose, notice, consent, responsible entity, jurisdiction, and applicable commencement dates require independent review.`,
+    citations: [{ source: 'Digital Personal Data Protection Act, 2023', section: 'Potentially relevant provisions · check phased commencement', url: 'https://www.indiacode.nic.in/bitstream/123456789/22037/1/a2023-22.pdf', sourceType: 'legislation', verifiedAt: '2026-11-22' }],
   };
 }
 

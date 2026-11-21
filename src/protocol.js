@@ -4,6 +4,9 @@ export const OUTBOUND = {
   stop: () => ({ type: 'stop' }),
   analyze: (flowId) => ({ type: 'analyze', flowId }),
   blocklist: (format) => ({ type: 'blocklist', format }),
+  // Optional backwards-compatible capability extension. Agents that do not
+  // implement idle monitoring may ignore this command.
+  configureIdle: (inactivityMs) => ({ type: 'configure_idle', inactivityMs }),
   exportEvidence: () => ({ type: 'export_evidence' }),
 };
 
