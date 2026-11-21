@@ -7,16 +7,8 @@ import sys
 from . import __version__
 from .capture import CaptureAddon, run_proxy
 from .config import Config
-from .schema import Flow
+from .pipeline import Pipeline
 from .wsserver import Hub, start_ws
-
-
-def raw_to_flow(raw: dict) -> Flow:
-    return Flow(
-        id=raw["id"], ts=raw["ts"], app=raw.get("app", "unknown"), host=raw.get("host", ""),
-        method=raw.get("method", ""), path=raw.get("path", ""), ip=raw.get("ip", ""),
-        decrypted=bool(raw.get("decrypted", True)), bytes=int(raw.get("bytes", 0)),
-    )
 
 
 class Agent:
@@ -26,6 +18,7 @@ class Agent:
         self.loop: asyncio.AbstractEventLoop | None = None
         self.addon = CaptureAddon(self._on_raw_threadsafe)
         self.hub = Hub(self.status, self.on_command)
+        self.pipeline = Pipeline(cfg)
         self.flow_count = 0
         self.capturing = True
 
@@ -37,7 +30,7 @@ class Agent:
             "mode": self.mode if self.capturing else "idle",
             "proxy": f"127.0.0.1:{self.cfg.proxy_port}" if self.mode == "live" else "",
             "flows": self.flow_count,
-            "engines": {"llm": False, "rag": False, "model": False, "geo": False},
+            "engines": {"llm": False, "rag": False, "model": False, "geo": self.pipeline.geo.available},
             "version": __version__,
         }
 
@@ -51,9 +44,13 @@ class Agent:
     def on_raw(self, raw: dict) -> None:
         if not self.capturing:
             return
-        flow = raw_to_flow(raw)
+        try:
+            enriched = self.pipeline.process(raw)
+        except Exception as e:  # never crash capture on one bad flow
+            self.hub.error("pipeline", f"{type(e).__name__}: {e}")
+            return
         self.flow_count += 1
-        self.hub.publish({"type": "flow", "flow": flow.to_dict()})
+        self.hub.publish({"type": "flow", "flow": enriched.flow.to_dict()})
 
     # ------------------------------------------------------------------ commands
     async def on_command(self, cmd: dict) -> None:

@@ -22,7 +22,7 @@ async def main(seconds: float) -> None:
             lat = ""
             if msg.get("type") == "flow":
                 lat = f" latency={int(time.time()*1000) - msg['flow']['ts']}ms"
-            print(msg["type"] + lat, json.dumps(msg)[:220], flush=True)
+            print(msg["type"] + lat, json.dumps(msg), flush=True)
 
 
 if __name__ == "__main__":

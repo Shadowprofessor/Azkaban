@@ -20,6 +20,7 @@ def build_parser() -> argparse.ArgumentParser:
     cap.add_argument("--ws-port", type=int, default=None)
     cap.add_argument("--record", metavar="FILE", default=None,
                      help="Record this session to a .azk file (explicit opt-in)")
+    sub.add_parser("fetch-geo", help="Download the offline DB-IP country database")
     return p
 
 
@@ -41,6 +42,10 @@ def main(argv: list[str] | None = None) -> int:
             asyncio.run(Agent(cfg).run())
         except KeyboardInterrupt:
             pass
+        return 0
+    if args.cmd == "fetch-geo":
+        from .geo import fetch_dbip
+        print(f"[azkaban] saved {fetch_dbip()}")
         return 0
     return 1
 
