@@ -1,0 +1,302 @@
+[
+ {
+  "feature": "beh_stylesheet",
+  "gain": 0.052
+ },
+ {
+  "feature": "kw_bid",
+  "gain": 0.0438
+ },
+ {
+  "feature": "beh_script",
+  "gain": 0.0403
+ },
+ {
+  "feature": "kw_sync",
+  "gain": 0.033
+ },
+ {
+  "feature": "beh_beacon",
+  "gain": 0.0291
+ },
+ {
+  "feature": "beh_bad_qs",
+  "gain": 0.0268
+ },
+ {
+  "feature": "lex_len",
+  "gain": 0.0263
+ },
+ {
+  "feature": "kw_pixel",
+  "gain": 0.0247
+ },
+ {
+  "feature": "beh_referer_leaked",
+  "gain": 0.0223
+ },
+ {
+  "feature": "beh_xhr",
+  "gain": 0.021
+ },
+ {
+  "feature": "beh_samesite_none",
+  "gain": 0.0206
+ },
+ {
+  "feature": "beh_font",
+  "gain": 0.0203
+ },
+ {
+  "feature": "beh_log_content_length",
+  "gain": 0.0197
+ },
+ {
+  "feature": "beh_iframe",
+  "gain": 0.0184
+ },
+ {
+  "feature": "lex_tld_common",
+  "gain": 0.0183
+ },
+ {
+  "feature": "beh_image",
+  "gain": 0.0175
+ },
+ {
+  "feature": "kw_ads",
+  "gain": 0.0173
+ },
+ {
+  "feature": "beh_cookies",
+  "gain": 0.0172
+ },
+ {
+  "feature": "beh_https",
+  "gain": 0.0172
+ },
+ {
+  "feature": "kw_ad",
+  "gain": 0.0159
+ },
+ {
+  "feature": "beh_log_requests",
+  "gain": 0.0147
+ },
+ {
+  "feature": "kw_stat",
+  "gain": 0.0142
+ },
+ {
+  "feature": "kw_cdn",
+  "gain": 0.0141
+ },
+ {
+  "feature": "lex_hyphens",
+  "gain": 0.014
+ },
+ {
+  "feature": "ng_1",
+  "gain": 0.0129
+ },
+ {
+  "feature": "beh_media",
+  "gain": 0.0127
+ },
+ {
+  "feature": "ng_12",
+  "gain": 0.0125
+ },
+ {
+  "feature": "ng_9",
+  "gain": 0.0113
+ },
+ {
+  "feature": "lex_digit_ratio",
+  "gain": 0.0112
+ },
+ {
+  "feature": "kw_static",
+  "gain": 0.0106
+ },
+ {
+  "feature": "ng_7",
+  "gain": 0.0106
+ },
+ {
+  "feature": "ng_15",
+  "gain": 0.0106
+ },
+ {
+  "feature": "kw_analytic",
+  "gain": 0.0105
+ },
+ {
+  "feature": "ng_6",
+  "gain": 0.0105
+ },
+ {
+  "feature": "lex_tld_cc",
+  "gain": 0.0102
+ },
+ {
+  "feature": "kw_data",
+  "gain": 0.0102
+ },
+ {
+  "feature": "ng_0",
+  "gain": 0.01
+ },
+ {
+  "feature": "ng_3",
+  "gain": 0.0099
+ },
+ {
+  "feature": "ng_20",
+  "gain": 0.0099
+ },
+ {
+  "feature": "ng_24",
+  "gain": 0.0096
+ },
+ {
+  "feature": "ng_8",
+  "gain": 0.0095
+ },
+ {
+  "feature": "ng_10",
+  "gain": 0.0095
+ },
+ {
+  "feature": "ng_17",
+  "gain": 0.0093
+ },
+ {
+  "feature": "ng_21",
+  "gain": 0.0092
+ },
+ {
+  "feature": "lex_entropy",
+  "gain": 0.0091
+ },
+ {
+  "feature": "lex_second_level",
+  "gain": 0.009
+ },
+ {
+  "feature": "kw_tag",
+  "gain": 0.009
+ },
+ {
+  "feature": "kw_api",
+  "gain": 0.0089
+ },
+ {
+  "feature": "ng_13",
+  "gain": 0.0089
+ },
+ {
+  "feature": "ng_16",
+  "gain": 0.0089
+ },
+ {
+  "feature": "ng_19",
+  "gain": 0.0088
+ },
+ {
+  "feature": "ng_27",
+  "gain": 0.0087
+ },
+ {
+  "feature": "ng_28",
+  "gain": 0.0085
+ },
+ {
+  "feature": "ng_25",
+  "gain": 0.0084
+ },
+ {
+  "feature": "ng_29",
+  "gain": 0.0082
+ },
+ {
+  "feature": "ng_11",
+  "gain": 0.0081
+ },
+ {
+  "feature": "ng_31",
+  "gain": 0.008
+ },
+ {
+  "feature": "ng_22",
+  "gain": 0.0079
+ },
+ {
+  "feature": "lex_vowel_ratio",
+  "gain": 0.0078
+ },
+ {
+  "feature": "ng_14",
+  "gain": 0.0078
+ },
+ {
+  "feature": "ng_23",
+  "gain": 0.0078
+ },
+ {
+  "feature": "ng_2",
+  "gain": 0.0077
+ },
+ {
+  "feature": "ng_26",
+  "gain": 0.0077
+ },
+ {
+  "feature": "ng_30",
+  "gain": 0.0074
+ },
+ {
+  "feature": "ng_4",
+  "gain": 0.0072
+ },
+ {
+  "feature": "ng_18",
+  "gain": 0.0069
+ },
+ {
+  "feature": "kw_img",
+  "gain": 0.0067
+ },
+ {
+  "feature": "ng_5",
+  "gain": 0.0065
+ },
+ {
+  "feature": "kw_log",
+  "gain": 0.0061
+ },
+ {
+  "feature": "kw_media",
+  "gain": 0.0058
+ },
+ {
+  "feature": "kw_metric",
+  "gain": 0.0053
+ },
+ {
+  "feature": "kw_track",
+  "gain": 0.0052
+ },
+ {
+  "feature": "kw_count",
+  "gain": 0.0052
+ },
+ {
+  "feature": "kw_click",
+  "gain": 0.0049
+ },
+ {
+  "feature": "has_behavior",
+  "gain": 0.0043
+ }
+]

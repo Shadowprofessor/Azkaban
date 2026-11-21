@@ -19,7 +19,20 @@ from urllib.parse import urlparse
 import requests
 
 LOOPBACK_NAMES = {"localhost"}
-SETUP_HOSTS = {"download.db-ip.com"}
+# Public reference data fetched only by explicit setup/training commands (never at runtime,
+# never with user data): GeoIP DB, tracker blocklists, top-site lists, WhoTracks.me stats.
+SETUP_HOSTS = {
+    "download.db-ip.com",
+    "easylist.to",
+    "filters.adtidy.org",
+    "raw.githubusercontent.com",
+    "pgl.yoyo.org",
+    "tranco-list.eu",
+    "s3-us-west-1.amazonaws.com",
+    "s3.amazonaws.com",
+    "staticcdn.duckduckgo.com",
+    "reports.exodus-privacy.eu.org",
+}
 
 
 class EgressDenied(PermissionError):

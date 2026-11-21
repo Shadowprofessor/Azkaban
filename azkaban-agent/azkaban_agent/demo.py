@@ -104,6 +104,18 @@ def generate(seed: int = 7) -> list[dict]:
     out.append(_rec(at(900), "SecureBank", "netbanking.securebank.example", "13.235.1.20", method="CONNECT",
                     path="", decrypted=False, nbytes=0, tsi=0.8))
 
+    # 5b. NewsDaily also embeds a pixel SDK that is on NO public list (unknown to every blocklist):
+    #     tiny GIFs with a stable UID in the query, cookies, and the article URL in the Referer,
+    #     across several separate page loads. Only behaviour can catch it.
+    uid = "8f14e45fceea167a5a36dedd4bea2543"
+    for i in range(4):
+        out.append(_rec(at(35_000 if i else 900), "NewsDaily", "px.quietpixel.io", "185.199.110.10", method="GET",
+                        path="/p.gif", query=f"uid={uid}&ev=pageview&n={i}", nbytes=43, tsi=2.0 + i,
+                        headers={"user-agent": "NewsDaily/3.2 (Android 14)", "cookie": f"qp_id={uid}",
+                                 "referer": f"https://newsdaily.example/article/{1000 + i}?ref=home"}))
+        out[-1]["resp_type"] = "image/gif"
+        out[-1]["status"] = 200
+
     # 6. User puts the phone down. Trackers keep beaconing.
     idle = 30.0
     for i in range(24):

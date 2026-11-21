@@ -44,7 +44,11 @@ Ollama down -> flows + severity continue, no verdicts (`error: llm_unavailable` 
 RAG down -> verdict `questionable`, "Law unavailable". No GeoIP DB -> country `ZZ`. No model -> rubric fallback.
 
 ## Model notes (for judges)
-Severity: XGBoost on 11 features, trained by weak supervision (synthetic flows labelled by an expert rubric + noise),
-exported to ONNX; MAE 3.05 / R² 0.986 held-out, ONNX parity 1e-4. Feature importances: `azkaban_agent/data/severity_meta.json`.
-Unlisted trackers are detected from behaviour (IsolationForest + identifier-carrying beacons); a lexical domain
-RandomForest scored ROC-AUC ~0.60 (`train/eval_domain_rf.py`) and was deliberately not shipped.
+See **[MODELS.md](../MODELS.md)** for datasets, protocol and exact held-out numbers.
+- **Unknown-tracker classifier:** XGBoost trained on the GPU, ONNX at runtime. Labels come from public
+  blocklists; behaviour is real WhoTracks.me data. Held-out real domains under GroupKFold give
+  **F1 0.822 / PR-AUC 0.871** (target was 0.93 — not reached, reported as-is). The same model runs in
+  the agent and the extension.
+- **Severity:** XGBoost fitted to a synthetic rubric. R² 0.986 is circular and only shows it reproduces
+  the rubric; it is not real-world accuracy.
+- **Beacon anomaly:** IsolationForest, unsupervised.

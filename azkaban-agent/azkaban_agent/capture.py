@@ -145,6 +145,11 @@ class CaptureAddon:
             "query": req.path.split("?", 1)[1] if "?" in req.path else "",
             "body": body,
             "note": "",
+            # Response metadata for the tracker classifier's request-structure features.
+            "resp_type": (flow.response.headers.get("content-type", "") if flow.response else "")[:100],
+            "status": flow.response.status_code if flow.response else 0,
+            "samesite_none": any("samesite=none" in v.lower() for v in flow.response.headers.get_all("set-cookie"))
+                             if flow.response else None,
         })
 
 

@@ -1,0 +1,458 @@
+{
+ "primary_model": "lightgbm",
+ "results": {
+  "xgboost": {
+   "features": 78,
+   "at_0.5": {
+    "threshold": 0.5,
+    "f1": 0.8146,
+    "precision": 0.8302,
+    "recall": 0.7997,
+    "balanced_accuracy": 0.755,
+    "pr_auc": 0.8714,
+    "roc_auc": 0.824,
+    "confusion_matrix": [
+     [
+      709,
+      289
+     ],
+     [
+      354,
+      1413
+     ]
+    ],
+    "n": 2765,
+    "positives": 1767
+   },
+   "at_tuned_threshold": {
+    "threshold": "per-fold, tuned on a validation split of the training fold",
+    "f1": 0.822,
+    "precision": 0.7598,
+    "recall": 0.8953,
+    "balanced_accuracy": 0.6972,
+    "pr_auc": 0.8714,
+    "roc_auc": 0.824,
+    "confusion_matrix": [
+     [
+      498,
+      500
+     ],
+     [
+      185,
+      1582
+     ]
+    ],
+    "n": 2765,
+    "positives": 1767
+   },
+   "folds": [
+    {
+     "fold": 0,
+     "n_test": 553,
+     "threshold": 0.24,
+     "val_f1": 0.8514,
+     "f1@0.5": 0.7954,
+     "f1@tuned": 0.8005
+    },
+    {
+     "fold": 1,
+     "n_test": 553,
+     "threshold": 0.17,
+     "val_f1": 0.8217,
+     "f1@0.5": 0.8208,
+     "f1@tuned": 0.8235
+    },
+    {
+     "fold": 2,
+     "n_test": 553,
+     "threshold": 0.23,
+     "val_f1": 0.8596,
+     "f1@0.5": 0.8434,
+     "f1@tuned": 0.8391
+    },
+    {
+     "fold": 3,
+     "n_test": 553,
+     "threshold": 0.24,
+     "val_f1": 0.8322,
+     "f1@0.5": 0.8155,
+     "f1@tuned": 0.8366
+    },
+    {
+     "fold": 4,
+     "n_test": 553,
+     "threshold": 0.2,
+     "val_f1": 0.8093,
+     "f1@0.5": 0.797,
+     "f1@tuned": 0.8101
+    }
+   ],
+   "devices": [
+    "cuda"
+   ]
+  },
+  "lightgbm": {
+   "features": 78,
+   "at_0.5": {
+    "threshold": 0.5,
+    "f1": 0.8188,
+    "precision": 0.8232,
+    "recall": 0.8144,
+    "balanced_accuracy": 0.7524,
+    "pr_auc": 0.8795,
+    "roc_auc": 0.8288,
+    "confusion_matrix": [
+     [
+      689,
+      309
+     ],
+     [
+      328,
+      1439
+     ]
+    ],
+    "n": 2765,
+    "positives": 1767
+   },
+   "at_tuned_threshold": {
+    "threshold": "per-fold, tuned on a validation split of the training fold",
+    "f1": 0.8247,
+    "precision": 0.7564,
+    "recall": 0.9066,
+    "balanced_accuracy": 0.6948,
+    "pr_auc": 0.8795,
+    "roc_auc": 0.8288,
+    "confusion_matrix": [
+     [
+      482,
+      516
+     ],
+     [
+      165,
+      1602
+     ]
+    ],
+    "n": 2765,
+    "positives": 1767
+   },
+   "folds": [
+    {
+     "fold": 0,
+     "n_test": 553,
+     "threshold": 0.1,
+     "val_f1": 0.8394,
+     "f1@0.5": 0.7949,
+     "f1@tuned": 0.7916
+    },
+    {
+     "fold": 1,
+     "n_test": 553,
+     "threshold": 0.28,
+     "val_f1": 0.83,
+     "f1@0.5": 0.8274,
+     "f1@tuned": 0.8318
+    },
+    {
+     "fold": 2,
+     "n_test": 553,
+     "threshold": 0.18,
+     "val_f1": 0.8619,
+     "f1@0.5": 0.8359,
+     "f1@tuned": 0.8428
+    },
+    {
+     "fold": 3,
+     "n_test": 553,
+     "threshold": 0.29,
+     "val_f1": 0.8266,
+     "f1@0.5": 0.8212,
+     "f1@tuned": 0.8417
+    },
+    {
+     "fold": 4,
+     "n_test": 553,
+     "threshold": 0.12,
+     "val_f1": 0.8203,
+     "f1@0.5": 0.8141,
+     "f1@tuned": 0.8175
+    }
+   ],
+   "devices": [
+    "cpu"
+   ]
+  },
+  "ensemble_xgb_cnn": {
+   "features": 78,
+   "at_0.5": {
+    "threshold": 0.5,
+    "f1": 0.7864,
+    "precision": 0.8447,
+    "recall": 0.7357,
+    "balanced_accuracy": 0.7481,
+    "pr_auc": 0.8509,
+    "roc_auc": 0.7922,
+    "confusion_matrix": [
+     [
+      759,
+      239
+     ],
+     [
+      467,
+      1300
+     ]
+    ],
+    "n": 2765,
+    "positives": 1767
+   },
+   "at_tuned_threshold": {
+    "threshold": "per-fold, tuned on a validation split of the training fold",
+    "f1": 0.8059,
+    "precision": 0.7073,
+    "recall": 0.9366,
+    "balanced_accuracy": 0.6251,
+    "pr_auc": 0.8509,
+    "roc_auc": 0.7922,
+    "confusion_matrix": [
+     [
+      313,
+      685
+     ],
+     [
+      112,
+      1655
+     ]
+    ],
+    "n": 2765,
+    "positives": 1767
+   },
+   "folds": [
+    {
+     "fold": 0,
+     "n_test": 553,
+     "threshold": 0.24,
+     "val_f1": 0.8514,
+     "f1@0.5": 0.7815,
+     "f1@tuned": 0.7772
+    },
+    {
+     "fold": 1,
+     "n_test": 553,
+     "threshold": 0.17,
+     "val_f1": 0.8217,
+     "f1@0.5": 0.7895,
+     "f1@tuned": 0.7981
+    },
+    {
+     "fold": 2,
+     "n_test": 553,
+     "threshold": 0.23,
+     "val_f1": 0.8596,
+     "f1@0.5": 0.8036,
+     "f1@tuned": 0.8343
+    },
+    {
+     "fold": 3,
+     "n_test": 553,
+     "threshold": 0.24,
+     "val_f1": 0.8322,
+     "f1@0.5": 0.768,
+     "f1@tuned": 0.8219
+    },
+    {
+     "fold": 4,
+     "n_test": 553,
+     "threshold": 0.2,
+     "val_f1": 0.8093,
+     "f1@0.5": 0.7895,
+     "f1@tuned": 0.7985
+    }
+   ],
+   "devices": [
+    "cnn:cuda",
+    "cuda"
+   ]
+  },
+  "xgboost_browser_subset": {
+   "features": 78,
+   "at_0.5": {
+    "threshold": 0.5,
+    "f1": 0.796,
+    "precision": 0.8389,
+    "recall": 0.7572,
+    "balanced_accuracy": 0.7499,
+    "pr_auc": 0.8717,
+    "roc_auc": 0.8216,
+    "confusion_matrix": [
+     [
+      741,
+      257
+     ],
+     [
+      429,
+      1338
+     ]
+    ],
+    "n": 2765,
+    "positives": 1767
+   },
+   "at_tuned_threshold": {
+    "threshold": "per-fold, tuned on a validation split of the training fold",
+    "f1": 0.822,
+    "precision": 0.7725,
+    "recall": 0.8783,
+    "balanced_accuracy": 0.7102,
+    "pr_auc": 0.8717,
+    "roc_auc": 0.8216,
+    "confusion_matrix": [
+     [
+      541,
+      457
+     ],
+     [
+      215,
+      1552
+     ]
+    ],
+    "n": 2765,
+    "positives": 1767
+   },
+   "folds": [
+    {
+     "fold": 0,
+     "n_test": 553,
+     "threshold": 0.24,
+     "val_f1": 0.8514,
+     "f1@0.5": 0.7858,
+     "f1@tuned": 0.7968
+    },
+    {
+     "fold": 1,
+     "n_test": 553,
+     "threshold": 0.17,
+     "val_f1": 0.8217,
+     "f1@0.5": 0.8072,
+     "f1@tuned": 0.8228
+    },
+    {
+     "fold": 2,
+     "n_test": 553,
+     "threshold": 0.23,
+     "val_f1": 0.8596,
+     "f1@0.5": 0.8244,
+     "f1@tuned": 0.8417
+    },
+    {
+     "fold": 3,
+     "n_test": 553,
+     "threshold": 0.24,
+     "val_f1": 0.8322,
+     "f1@0.5": 0.7822,
+     "f1@tuned": 0.8371
+    },
+    {
+     "fold": 4,
+     "n_test": 553,
+     "threshold": 0.2,
+     "val_f1": 0.8093,
+     "f1@0.5": 0.7791,
+     "f1@tuned": 0.8118
+    }
+   ],
+   "devices": [
+    "cuda"
+   ]
+  }
+ },
+ "category_head": {
+  "macro_f1": 0.3568,
+  "per_class_f1": {
+   "advertising": 0.7579,
+   "analytics": 0.5978,
+   "social": 0.0,
+   "fingerprinting": 0.0714
+  },
+  "confusion_matrix": [
+   [
+    836,
+    217,
+    0,
+    0
+   ],
+   [
+    290,
+    385,
+    0,
+    0
+   ],
+   [
+    11,
+    1,
+    0,
+    0
+   ],
+   [
+    16,
+    10,
+    0,
+    1
+   ]
+  ],
+  "classes": [
+   "advertising",
+   "analytics",
+   "social",
+   "fingerprinting"
+  ],
+  "n": 1767,
+  "support": {
+   "advertising": 1053,
+   "analytics": 675,
+   "social": 12,
+   "fingerprinting": 27
+  }
+ },
+ "ablation": {
+  "lexical only": {
+   "features": 62,
+   "f1@0.5": 0.5668,
+   "f1@tuned": 0.78,
+   "pr_auc": 0.6973,
+   "balanced_accuracy": 0.5363
+  },
+  "+ structural (request-type mix, sizes)": {
+   "features": 72,
+   "f1@0.5": 0.7854,
+   "f1@tuned": 0.8194,
+   "pr_auc": 0.8472,
+   "balanced_accuracy": 0.7184
+  },
+  "+ behavioural (= deployed model)": {
+   "features": 78,
+   "f1@0.5": 0.8146,
+   "f1@tuned": 0.822,
+   "pr_auc": 0.8714,
+   "balanced_accuracy": 0.755
+  },
+  "behavioural+structural only (no lexical)": {
+   "features": 16,
+   "f1@0.5": 0.8139,
+   "f1@tuned": 0.8113,
+   "pr_auc": 0.8845,
+   "balanced_accuracy": 0.7507
+  },
+  "deployed + global-only stats (NOT deployable)": {
+   "features": 83,
+   "f1@0.5": 0.8219,
+   "f1@tuned": 0.8304,
+   "pr_auc": 0.8868,
+   "balanced_accuracy": 0.7626
+  }
+ },
+ "protocol": {
+  "test_set": "REAL domains with REAL WhoTracks.me behaviour only",
+  "cv": "GroupKFold(5) by domain name sans TLD",
+  "synthetic_rows": "train only, bootstrapped from the training fold's real rows",
+  "threshold": "tuned on a validation split of each training fold"
+ },
+ "seconds": 887.8
+}
