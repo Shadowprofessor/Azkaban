@@ -14,7 +14,8 @@
     "test:alerts": "node --experimental-strip-types e2e/phase9.mjs",
     "test:bridge": "node --experimental-strip-types e2e/phase10.mjs",
     "test:queue": "node --experimental-strip-types e2e/phase12.mjs",
-    "test:sync": "node --experimental-strip-types e2e/phase13.mjs"
+    "test:sync": "node --experimental-strip-types e2e/phase13.mjs",
+    "test:signin": "node --experimental-strip-types e2e/phase14.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.65.1",

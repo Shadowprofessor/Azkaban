@@ -4,6 +4,7 @@
 // form harvesting: typed values stay in this page's memory only and are never sent anywhere.
 import { defineContentScript } from "wxt/utils/define-content-script";
 import { browser } from "wxt/browser";
+import { SIGNIN_EXCLUDE_MATCHES } from "../lib/signin";
 
 const CHANNEL = "__azkaban_probe__";
 
@@ -31,6 +32,7 @@ function kindOf(el: HTMLInputElement | HTMLTextAreaElement, value: string): Fiel
 
 export default defineContentScript({
   matches: ["<all_urls>"],
+  excludeMatches: SIGNIN_EXCLUDE_MATCHES, // see lib/signin.ts: login pages must stay untouched
   runAt: "document_start",
   allFrames: true,
   main() {

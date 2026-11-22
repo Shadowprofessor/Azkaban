@@ -3,11 +3,13 @@
 // behaves exactly as without the extension. Findings go to the isolated bridge via
 // window.postMessage; MAIN world has no extension API access by design.
 import { defineContentScript } from "wxt/utils/define-content-script";
+import { SIGNIN_EXCLUDE_MATCHES } from "../lib/signin";
 
 export const CHANNEL = "__azkaban_probe__";
 
 export default defineContentScript({
   matches: ["<all_urls>"],
+  excludeMatches: SIGNIN_EXCLUDE_MATCHES, // see lib/signin.ts: login pages must stay untouched
   runAt: "document_start",
   world: "MAIN",
   allFrames: true,

@@ -9,6 +9,7 @@
 import { defineContentScript } from "wxt/utils/define-content-script";
 import { browser } from "wxt/browser";
 import type { Severity } from "../lib/alerts";
+import { SIGNIN_EXCLUDE_MATCHES } from "../lib/signin";
 
 const HOST_ID = "azkaban-toasts";
 const LIFETIME_MS = 5000;
@@ -98,6 +99,7 @@ export function showToast(message: string, severity: Severity): void {
 
 export default defineContentScript({
   matches: ["<all_urls>"],
+  excludeMatches: SIGNIN_EXCLUDE_MATCHES, // see lib/signin.ts: login pages must stay untouched
   runAt: "document_idle",
   allFrames: false, // top frame only: a nested ad frame must not be able to draw warnings
   main() {

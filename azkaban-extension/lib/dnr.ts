@@ -4,10 +4,13 @@
 import { browser } from "wxt/browser";
 import data from "../../azkaban-agent/azkaban_agent/data/trackers.json";
 import type { Settings } from "./store";
+import { SIGNIN_ALLOW_DOMAINS } from "./signin";
 
 const DOMAINS_PER_RULE = 1000;
 const RULE_ID_BASE = 1000;
 const COOKIE_RULE_BASE = 9000;
+const SIGNIN_RULE_ID = 1;
+const SIGNIN_PRIORITY = 100; // above every block (1) and cookie rule (1-2)
 const DOMAIN_RE = /^[a-z0-9.-]+\.[a-z]{2,}$/i;
 
 // Every resource type, main_frame included: blocking a domain's cookies has to hold when you
@@ -56,6 +59,16 @@ export function cookieRules(s: Settings) {
 
 const ALL_TRACKER_DOMAINS = Object.keys((data as { trackers: Record<string, unknown> }).trackers);
 
+/** Allow rule for identity providers (lib/signin.ts). Pure, so it is testable. */
+export function signinRule() {
+  return {
+    id: SIGNIN_RULE_ID,
+    priority: SIGNIN_PRIORITY,
+    action: { type: "allow" as const },
+    condition: { requestDomains: [...SIGNIN_ALLOW_DOMAINS], resourceTypes: [...ALL_TYPES] },
+  };
+}
+
 export function blockedDomains(s: Settings): string[] {
   const set = new Set<string>(s.customBlocks);
   if (s.blockTrackers) ALL_TRACKER_DOMAINS.forEach((d) => set.add(d));
@@ -80,9 +93,18 @@ export async function syncRules(s: Settings): Promise<number> {
     });
   }
   for (const r of cookieRules(s)) if (rules!.length < max) rules!.push(r as (typeof rules)[number]);
-  await browser.declarativeNetRequest.updateDynamicRules({
-    removeRuleIds: existing.map((r) => r.id),
-    addRules: rules,
-  });
+  // Sign-in always works: an allow rule outranks every block and cookie rule above.
+  rules!.unshift(signinRule() as (typeof rules)[number]);
+  try {
+    await browser.declarativeNetRequest.updateDynamicRules({
+      removeRuleIds: existing.map((r) => r.id),
+      addRules: rules,
+    });
+  } catch (e) {
+    // A rejected update leaves the OLD rules in force, which can mean blocking with Patronus
+    // switched off. Fail open: drop every rule rather than keep stale ones.
+    await browser.declarativeNetRequest.updateDynamicRules({ removeRuleIds: existing.map((r) => r.id) }).catch(() => undefined);
+    throw e;
+  }
   return domains.length;
 }
