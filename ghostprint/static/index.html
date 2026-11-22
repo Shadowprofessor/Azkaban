@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GhostPrint · Footprint audit</title>
+  <link rel="stylesheet" href="/style.css">
+  <script src="/app.js" defer></script>
+  <script src="/live.js" defer></script>
+  <script src="/site.js" defer></script>
+  <script src="/connections.js" defer></script>
+</head>
+<body>
+  <main>
+    <header>
+      <div class="brand">GhostPrint</div>
+      <h1>Personal data footprint</h1>
+      <p id="status" role="status">Loading your local audit…</p>
+    </header>
+    <section id="connected-apps" aria-labelledby="connected-heading">
+      <h2 id="connected-heading">Connect an account</h2>
+      <p>Sign in on the provider’s website and approve read-only access. GhostPrint fetches the permitted records and shows your privacy review automatically.</p>
+      <div class="controls">
+        <button id="check-without-account" type="button">Check a website without signing in</button>
+        <a href="#import-tools">Use an export instead</a>
+      </div>
+      <p id="connections-status" role="status">If account cards are missing, open the updated dashboard and reload this page.</p>
+      <div id="account-cards" class="grid"></div>
+    </section>
+    <section id="import-tools">
+      <h2>Import your data</h2>
+      <p>Select reports or exports to analyze together. GhostPrint starts the review on this laptop as soon as you choose the files.</p>
+      <div class="controls import-controls">
+        <label for="import-files" class="import-label">Choose report or export files</label>
+        <input id="import-files" type="file" multiple accept=".zip,.pdf,.docx,.xlsx,.csv,.tsv,.json,.jsonl,.ndjson,.xml,.txt,.md,.log,.html,.htm,.js,.vcf" aria-describedby="import-help">
+      </div>
+      <details>
+        <summary>Import options</summary>
+        <p><label>Platform hint <select id="import-platform"><option value="">Auto-detect</option></select></label></p>
+      </details>
+      <p id="import-help" class="shortcut">ZIP, PDF, Word, Excel, CSV, JSON, text, and other supported formats · Up to eight files and 512 MiB total</p>
+      <p id="import-status" role="status"></p>
+    </section>
+    <section id="website-check" aria-labelledby="website-heading">
+      <h2 id="website-heading">Website privacy check</h2>
+      <p>Choose an open browser tab to capture evidence from that page and compare it with the site’s policies. Enter an address to check public documents or reuse a capture from this session.</p>
+      <button id="ghostprint-tab-picker" type="button">Choose an open tab</button>
+      <button id="cancel-tab-selection" type="button" hidden>Cancel tab selection</button>
+      <p id="tab-picker-status" role="status"></p>
+      <details id="tab-picker-help">
+        <summary>Set up the browser tab picker</summary>
+        <p>In Chrome or Edge, open the extensions page and load or reload the <code>browser-companion</code> folder. Open this dashboard in the same browser profile as your tabs and reload the page.</p>
+      </details>
+      <form id="website-form">
+        <div class="controls website-controls">
+          <label>Website <input id="policy-website" required placeholder="example.com" maxlength="1200" autocomplete="off"></label>
+          <button id="check-website" type="submit">Check policies</button>
+        </div>
+        <details>
+          <summary>Use specific policy links</summary>
+          <div class="controls website-controls">
+            <label>Privacy Policy URL <input id="policy-privacy" type="url" maxlength="1200"></label>
+            <label>Terms URL <input id="policy-terms" type="url" maxlength="1200"></label>
+          </div>
+        </details>
+      </form>
+      <p id="website-status" role="status"></p>
+      <div id="website-review" aria-live="polite"></div>
+      <div id="website-results"></div>
+    </section>
+    <section id="automatic-review" aria-labelledby="review-heading" hidden>
+      <h2 id="review-heading" tabindex="-1">PrivacyGPT review · imported data</h2>
+      <article class="exposure-score">
+        <div>
+          <h3>Exposure score</h3>
+          <p id="risk-score"></p>
+        </div>
+        <meter id="risk-meter" min="0" max="100" aria-label="Exposure score out of 100"></meter>
+      </article>
+      <details>
+        <summary>How scoring works</summary>
+        <p>Each finding starts at 20 for Low, 45 for Medium, 70 for High, or 95 for Critical risk. A bounded record-count adjustment adds up to 14 points, with a maximum score of 100. The overall score is the highest finding score. A score describes exposure in the supplied records. Confidence is reported separately.</p>
+      </details>
+      <div id="review-result"></div>
+    </section>
+    <section data-archive-section>
+      <div class="section-head"><h2>Footprint map</h2><button id="download" hidden>Download report</button></div>
+      <p>Each cell shows records found in the exports you supplied.</p>
+      <div class="table-wrap" id="map"></div>
+    </section>
+    <section id="patterns" data-archive-section hidden>
+      <h2>Activity patterns</h2>
+      <div id="charts" class="grid"></div>
+    </section>
+    <section id="model-demo" hidden>
+      <h2>Model-grounded demo</h2>
+      <div id="model-response"></div>
+    </section>
+    <section data-archive-section>
+      <details id="platform-details">
+        <summary>Platform record details</summary>
+        <p><label>Platform <select id="filter"><option value="">All platforms</option></select></label></p>
+        <div id="actions"></div>
+      </details>
+    </section>
+    <section data-archive-section id="import-coverage">
+      <h2>Import coverage</h2>
+      <div id="coverage"></div>
+    </section>
+    <section id="live-tools">
+      <h2>Live website activity</h2>
+      <p>Pair the browser companion and turn on recording to see the sites you open during this session.</p>
+      <details>
+        <summary>Pair browser companion</summary>
+        <p>Open the GhostPrint Companion extension and paste this session’s pairing code.</p>
+        <div class="controls">
+          <input id="pairing-code" type="password" readonly aria-label="Browser companion pairing code">
+          <button id="copy-pairing" type="button">Copy pairing code</button>
+          <button id="show-pairing" type="button">Show code</button>
+        </div>
+        <p id="pair-status" role="status"></p>
+      </details>
+      <div class="section-head">
+        <h3>Recent sites</h3>
+        <button id="clear-activity" type="button" disabled>Clear activity</button>
+      </div>
+      <div id="recent-sites" class="site-list"><p>Waiting for website activity.</p></div>
+    </section>
+    <section>
+      <details id="follow-up">
+      <summary>Optional privacy assistant</summary>
+      <form id="ask-form">
+        <label for="ask-mode">Answer mode</label>
+        <select id="ask-mode">
+          <option value="auto">Automatic</option>
+          <option value="analyst">Analyze my imported data</option>
+        </select>
+        <p id="analyst-note" class="shortcut" hidden>PrivacyGPT uses local archive and browser evidence for this mode.</p>
+        <label for="ask-site">Website hostname <span class="muted">(optional)</span></label>
+        <input type="text" id="ask-site" placeholder="example.com" maxlength="253" autocomplete="off">
+        <label for="ask-prompt">Your prompt</label>
+        <div class="prompt-composer">
+          <textarea id="ask-prompt" rows="3" maxlength="1500" aria-describedby="prompt-shortcut"
+            placeholder="How do I block this site from using my microphone?"></textarea>
+          <button id="send-prompt" type="submit" aria-controls="ask-answer">Send</button>
+        </div>
+        <p id="prompt-shortcut" class="shortcut">Enter to send · Shift+Enter for a new line</p>
+        <div class="web-search-option" id="web-search-option">
+          <label><input id="search-web" type="checkbox" aria-describedby="web-search-note">
+            Search the web if there’s no local answer</label>
+          <p id="web-search-note" class="shortcut">The search provider receives your question or its English voice translation. Use public topics.</p>
+        </div>
+        <div class="controls">
+          <button id="record-voice" type="button" disabled>Use microphone</button>
+          <label>Dictation language <select id="dictation-language" disabled><option value="">Automatic</option></select></label>
+          <button id="read-prompt" type="button" disabled>Read prompt aloud</button>
+          <button id="stop-reading" type="button" hidden>Stop reading</button>
+          <label>Read-aloud voice <select id="local-voices"><option value="">Automatic</option></select></label>
+        </div>
+        <p id="voice-status" role="status"></p>
+        <p id="lookup-translation" class="muted" hidden></p>
+        <audio id="spoken-audio" controls hidden></audio>
+      </form>
+      <div id="ask-answer" class="answer-panel" role="region" aria-labelledby="answer-heading" hidden>
+        <h3 id="answer-heading" tabindex="-1">Answer</h3>
+        <p id="ask-status" role="status"></p>
+        <div id="ask-result"></div>
+      </div>
+      </details>
+    </section>
+  </main>
+</body>
+</html>

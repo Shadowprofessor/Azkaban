@@ -1,0 +1,291 @@
+import hmac
+import json
+from secrets import token_urlsafe
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+from threading import BoundedSemaphore, Lock
+from urllib.parse import parse_qs, urlsplit
+from zipfile import BadZipFile
+
+from .analyst import analyze, is_personal_question
+from .archive_signals import KNOWN_PLATFORMS
+from .cases import BY_CASE
+from .connections import PROVIDERS, ConnectionProblem, Connections
+from .model import rank
+from .imports import import_batch
+from .public_pages import public_url
+from .site_policy import browser_only_website, review_website, website_check
+from .speech import Speech
+from .voice import LocalVoice
+from .web_activity import WebActivity, answer, browser_hostname, hostname
+
+
+class Handler(BaseHTTPRequestHandler):
+    def log_message(self, *_):
+        pass
+
+    def send(self, status, content_type, body):
+        self.send_response(status)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Referrer-Policy", "no-referrer")
+        self.send_header("Content-Security-Policy", "default-src 'none'; connect-src 'self'; media-src blob:; "
+                         "script-src 'self'; style-src 'self'; frame-ancestors 'none'; base-uri 'none'")
+        self.end_headers()
+        self.wfile.write(body)
+
+    def send_json(self, status, data):
+        self.send(status, "application/json; charset=utf-8", json.dumps(data).encode())
+
+
+def dashboard(report, port, voice_model=None):
+    static = Path(__file__).with_name("static")
+    activity = WebActivity()
+    connections = Connections()
+    voice = LocalVoice(voice_model)
+    speech = Speech()
+    pairing_code = token_urlsafe(24)
+    import_lock = Lock()
+    site_checks = BoundedSemaphore(2)
+    assets = {route: (static / name, mime) for route, name, mime in [
+        ("/", "index.html", "text/html"),
+        ("/app.js", "app.js", "text/javascript"),
+        ("/live.js", "live.js", "text/javascript"),
+        ("/site.js", "site.js", "text/javascript"),
+        ("/connections.js", "connections.js", "text/javascript"),
+        ("/style.css", "style.css", "text/css"),
+    ]}
+
+    class Dashboard(Handler):
+        def valid_host(self):
+            address = self.server.server_port
+            return self.headers.get("Host") in {f"127.0.0.1:{address}", f"localhost:{address}"}
+
+        def do_GET(self):
+            if not self.valid_host():
+                self.send_json(403, {"error": "Use the local dashboard URL."})
+            elif self.path == "/api/report":
+                self.send_json(200, report)
+            elif self.path == "/api/connections":
+                self.send_json(200, {"accounts": connections.status()})
+            elif self.path.startswith("/?"):
+                try:
+                    parameters = parse_qs(urlsplit(self.path).query, max_num_fields=16)
+                except ValueError:
+                    parameters = {}
+                states, codes = parameters.get("state", []), parameters.get("code", [])
+                if len(states) == 1 and (len(codes) == 1 or "error" in parameters):
+                    connections.finish(states[0], codes[0] if len(codes) == 1 else None,
+                                       denied="error" in parameters)
+                self.send_response(303)
+                self.send_header("Location", "/#connected-apps")
+                self.send_header("Cache-Control", "no-store")
+                self.send_header("Referrer-Policy", "no-referrer")
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+            elif self.path == "/api/live":
+                self.send_json(200, {"sites": activity.snapshot(), "captures": activity.capture_revisions(),
+                                     "paired_captures": activity.capture_revisions(paired_only=True)})
+            elif self.path == "/api/live/settings":
+                self.send_json(200, {"pairing_code": pairing_code, "voice": voice.enabled,
+                                     "read_languages": speech.languages(), "dictation_languages": voice.languages,
+                                     "import_platforms": KNOWN_PLATFORMS[:-1]})
+            elif self.path in assets:
+                path, mime = assets[self.path]
+                self.send(200, f"{mime}; charset=utf-8", path.read_bytes())
+            else:
+                self.send_json(404, {"error": "Unknown route."})
+
+        def read_body(self, maximum):
+            self.connection.settimeout(6)
+            length = int(self.headers.get("Content-Length", "0"))
+            if not 0 < length <= maximum:
+                raise ValueError("Request size is outside the supported limit.")
+            data = self.rfile.read(length)
+            if len(data) != length:
+                raise ValueError("Request body was incomplete.")
+            return data
+
+        def do_POST(self):
+            nonlocal report
+            if not self.valid_host():
+                self.send_json(403, {"error": "Use the local dashboard URL."})
+                return
+            origin = self.headers.get("Origin")
+            if self.path == "/api/live/event":
+                authorization = self.headers.get("Authorization", "").encode()
+                if not hmac.compare_digest(authorization, f"Bearer {pairing_code}".encode()):
+                    self.send_json(401, {"error": "Pair the extension with this dashboard."})
+                    return
+            elif origin != f"http://{self.headers.get('Host')}":
+                self.send_json(403, {"error": "Use the local dashboard to submit this request."})
+                return
+            try:
+                if self.path == "/api/connections":
+                    body = json.loads(self.read_body(2048))
+                    if (not isinstance(body, dict) or set(body) != {"provider", "action"}
+                            or not isinstance(body["provider"], str) or body["provider"] not in PROVIDERS):
+                        raise ValueError("Choose a supported account connection.")
+                    key, action = body["provider"], body["action"]
+                    try:
+                        if action == "connect":
+                            url = connections.begin(key, self.server.server_port)
+                            self.send_json(200, {"authorization_url": url})
+                            return
+                        if action == "refresh":
+                            connections.refresh(key)
+                        elif action == "disconnect":
+                            connections.disconnect(key)
+                        else:
+                            raise ValueError("Unknown account action.")
+                    except ConnectionProblem as error:
+                        self.send_json(409, {"error": str(error)})
+                        return
+                    self.send_json(200, {"accounts": connections.status()})
+                elif self.path == "/api/import":
+                    if self.headers.get_content_type() != "application/octet-stream":
+                        raise ValueError("Expected a GhostPrint file upload.")
+                    if not import_lock.acquire(blocking=False):
+                        self.send_json(409, {"error": "An import is already running. Try again when it finishes."})
+                        return
+                    try:
+                        self.connection.settimeout(30)
+                        incoming = import_batch(self.rfile, int(self.headers.get("Content-Length", "0")))
+                        report = incoming
+                    except BadZipFile:
+                        raise ValueError("A ZIP could not be opened. Try downloading that export again.") from None
+                    except OSError as error:
+                        if isinstance(error, TimeoutError):
+                            raise ValueError("The upload timed out. Select the files again.") from None
+                        self.send_json(500, {"error": "GhostPrint could not read or temporarily store the selected files."})
+                        return
+                    finally:
+                        import_lock.release()
+                    self.send_json(200, incoming)
+                elif self.path == "/api/live/event":
+                    body = json.loads(self.read_body(16_384))
+                    if not isinstance(body, dict) or set(body) - {"site", "links", "permissions", "observation"} or "site" not in body:
+                        raise ValueError("Expected a hostname and optional browser evidence.")
+                    activity.add(body["site"], body.get("links"), body.get("permissions"), body.get("observation"))
+                    self.send_json(200, {"recorded": True})
+                elif self.path == "/api/site/check":
+                    body = json.loads(self.read_body(16384))
+                    if not isinstance(body, dict) or set(body) - {"website", "privacy_url", "terms_url", "browser_evidence"}:
+                        raise ValueError("Enter a website to check.")
+                    evidence = body.get("browser_evidence")
+                    try:
+                        website = public_url(body.get("website"), homepage=True)
+                        host = urlsplit(website).hostname
+                    except ValueError:
+                        host = browser_hostname(body.get("website"))
+                        if evidence is None and activity.site_capture(host) is None:
+                            raise ValueError("Enter a public HTTPS website or capture an open intranet tab first.") from None
+                        website = None
+                    if evidence is not None and (not isinstance(evidence, dict)
+                            or set(evidence) != {"site", "links", "permissions", "observation"}
+                            or browser_hostname(evidence["site"]) != host or evidence["observation"] is None
+                            or evidence["links"] is None or evidence["permissions"] is None):
+                        raise ValueError("Browser evidence must be from the selected website.")
+                    if not site_checks.acquire(blocking=False):
+                        self.send_json(409, {"error": "Website checks are busy. Try again when one finishes."})
+                        return
+                    try:
+                        alias = host[4:] if host.startswith("www.") else f"www.{host}"
+                        capture = (activity.add(**evidence, record_visit=False) if evidence is not None
+                                   else activity.site_capture(host) or activity.site_capture(alias))
+                        observation = capture["observation"] if capture else None
+                        links = capture["links"] if capture else activity.links(host) or activity.links(alias)
+                        result = (website_check(website, observation, links, body.get("privacy_url"), body.get("terms_url"))
+                                  if website else browser_only_website(host, observation))
+                        result["capture_revision"] = capture["revision"] if capture else None
+                        result["review"] = review_website(result)
+                    finally:
+                        site_checks.release()
+                    self.send_json(200, result)
+                elif self.path == "/api/live/clear":
+                    activity.clear()
+                    self.send_json(200, {"cleared": True})
+                elif self.path == "/api/live/ask":
+                    body = json.loads(self.read_body(8192))
+                    prompt = body.get("prompt") if isinstance(body, dict) else None
+                    if not isinstance(prompt, str) or len(prompt) > 1500:
+                        raise ValueError("Enter a prompt of up to 1,500 characters.")
+                    mode = body.get("mode")
+                    if mode == "analyst" or is_personal_question(prompt):
+                        analysis = analyze(prompt, report, activity.snapshot(), activity.permissions())
+                        self.send_json(200, {"analysis": analysis})
+                    else:
+                        site = hostname(body["site"]) if body.get("site") else ""
+                        self.send_json(200, answer(prompt, site, activity.links(site),
+                                                   search_web=body.get("search_web") is True))
+                elif self.path == "/api/voice":
+                    if self.headers.get_content_type() not in {"audio/webm", "audio/ogg", "audio/mp4", "audio/wav"}:
+                        raise ValueError("Unsupported recording format.")
+                    audio = self.read_body(3 * 1024 * 1024)
+                    language = self.headers.get("X-GhostPrint-Language") or None
+                    try:
+                        result = voice.transcribe(audio, language)
+                    except RuntimeError as error:
+                        self.send_json(503, {"error": str(error)})
+                    except Exception:
+                        self.send_json(422, {"error": "Could not decode the recording or load the local model."})
+                    else:
+                        self.send_json(200, result)
+                elif self.path == "/api/read":
+                    body = json.loads(self.read_body(12_288))
+                    prompt = body.get("prompt") if isinstance(body, dict) else None
+                    language = body.get("language") if isinstance(body, dict) else None
+                    if (not isinstance(prompt, str) or not 0 < len(prompt.strip()) <= 1500
+                            or "\x00" in prompt or not isinstance(language, str)):
+                        raise ValueError("Enter a prompt and choose a voice.")
+                    self.send(200, "audio/wav", speech.render(prompt, language))
+                else:
+                    self.send_json(404, {"error": "Unknown route."})
+            except (ValueError, TimeoutError) as error:
+                self.send_json(400, {"error": str(error)})
+
+    run(Dashboard, "127.0.0.1", port)
+
+
+def bridge(host, port, token, *, base, model):
+    class ModelBridge(Handler):
+        def do_POST(self):
+            if self.path != "/v1/benchmark":
+                self.send_json(404, {"error": "Unknown route."})
+                return
+            header = self.headers.get("Authorization", "").encode()
+            if token and not hmac.compare_digest(header, f"Bearer {token}".encode()):
+                self.send_json(401, {"error": "Unauthorized."})
+                return
+            try:
+                self.connection.settimeout(5)
+                size = int(self.headers.get("Content-Length", "0"))
+                if not 0 < size <= 128:
+                    raise ValueError()
+                body = json.loads(self.rfile.read(size))
+                if not isinstance(body, dict) or set(body) != {"case"} or not isinstance(body["case"], str):
+                    raise ValueError()
+                if body["case"] not in BY_CASE:
+                    raise ValueError()
+            except (ValueError, TimeoutError):
+                self.send_json(400, {"error": "Expected a built-in synthetic case ID."})
+                return
+            try:
+                result = rank(body["case"], base=base, model=model)
+            except RuntimeError as error:
+                self.send_json(502, {"error": str(error)})
+            else:
+                self.send_json(200, result)
+
+    run(ModelBridge, host, port)
+
+
+def run(handler, host, port):
+    with ThreadingHTTPServer((host, port), handler) as server:
+        print(f"Listening on http://{host}:{server.server_port}", flush=True)
+        try:
+            server.serve_forever()
+        except KeyboardInterrupt:
+            pass

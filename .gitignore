@@ -34,3 +34,6 @@ Claude outputs/
 
 # local run logs (may contain host names from your traffic)
 logs/
+.voice-models/
+ghostprint-report.json
+*.zip

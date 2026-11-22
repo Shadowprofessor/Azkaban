@@ -1,0 +1,321 @@
+const websiteForm = byId("website-form");
+const websiteStatus = byId("website-status");
+const websiteResults = byId("website-results");
+const websiteReview = byId("website-review");
+const websiteInput = byId("policy-website");
+const pickerControls = [byId("ghostprint-tab-picker"), byId("check-without-account")];
+const pickerMessage = byId("tab-picker-status");
+const cancelTabSelection = byId("cancel-tab-selection");
+let pickerRequest;
+let pickerTimer;
+let pickerTarget;
+let lastCaptureRevision = 0;
+let activeWebsiteCheck;
+let policySite;
+
+function showWebsiteReview(result, websiteReview) {
+  if (!result.review) return;
+  node("h3", `PrivacyGPT review · ${result.site}`, websiteReview);
+  if (result.observation) {
+    const source = node("p", "Latest browser capture · ", websiteReview);
+    node("time", new Date(result.observation.seen).toLocaleString(), source).dateTime = result.observation.seen;
+  }
+  const { review } = result;
+  node("p", review.score == null ? "Exposure score · Insufficient evidence" :
+    `Exposure score · ${review.score}/100 · ${review.risk.level} risk`, websiteReview);
+  showReview(review, websiteReview, "the browser snapshot", false);
+  showWebsiteInventory(result, websiteReview);
+}
+
+const browserDataLabels = {
+  email: "Email addresses", phone: "Phone numbers", name: "Names", address: "Postal addresses",
+  payment: "Payment details", credentials: "Account credentials", identifiers: "Device or advertising identifiers",
+  ip: "IP addresses", activity: "Browsing or search activity", location: "Location data"
+};
+const statementActions = {
+  collect: "Collection", store: "Storage or retention", share: "Sharing", sell: "Sale", use: "Use"
+};
+const statementStances = {
+  disclosed: "Disclosed", denied: "Denied", qualified: "Read the scope and exceptions",
+  qualified_denial: "Denial with qualifications"
+};
+
+function showQuote(statement, target) {
+  const quote = node("blockquote", statement.quote, target);
+  quote.className = "policy-quote";
+  linkTo(statement.document, statement.source, target);
+}
+
+function groupStatements(statements, key) {
+  const groups = new Map();
+  for (const statement of statements) {
+    const value = statement[key];
+    if (!groups.has(value)) groups.set(value, []);
+    groups.get(value).push(statement);
+  }
+  return groups;
+}
+
+function summarizeStatements(statements) {
+  const summaries = [];
+  for (const [action, items] of groupStatements(statements, "action")) {
+    const stances = new Set(items.map((item) => item.stance));
+    const position = stances.size > 1 ? "scope varies" :
+      stances.has("denied") ? "denied" :
+      stances.has("qualified_denial") ? "qualified denial" :
+      stances.has("qualified") ? "disclosed with conditions" : "disclosed";
+    summaries.push(`${statementActions[action]} ${position}`);
+  }
+  return summaries.join(", ");
+}
+
+function showWebsite(result, websiteResults) {
+  if (result.risks.length) {
+    node("h3", "Potential exposure to check", websiteResults);
+    for (const risk of result.risks) {
+      const card = node("article", undefined, websiteResults);
+      card.className = "policy-alert";
+      node("h4", risk.title, card);
+      node("p", risk.detail, card);
+      node("p", risk.action, card);
+    }
+  }
+  node("h3", "Policy comparison", websiteResults);
+  if (!result.observation) {
+    node("p", "Public documents checked. To see what the browser observed, open this website in Chrome or Edge and capture its tab.", websiteResults);
+  } else if (!result.comparisons.length) {
+    node("p", "The snapshot had no comparable fields or storage observations.", websiteResults);
+  } else {
+    for (const comparison of result.comparisons) {
+      const card = node("article", undefined, websiteResults);
+      if (comparison.status === "Possible mismatch") card.className = "policy-alert";
+      node("h4", `${comparison.status} · ${comparison.data}`, card);
+      node("p", comparison.evidence, card);
+      node("p", comparison.note, card);
+      for (const statement of comparison.statements) showQuote(statement, card);
+    }
+  }
+  const captureButton = node("button", result.observation ? "Capture this site again" : "Capture this website’s tab", websiteResults);
+  captureButton.type = "button";
+  captureButton.addEventListener("click", () => openTabPicker(result.site));
+  const switchButton = node("button", "Check another website", websiteResults);
+  switchButton.type = "button";
+  switchButton.addEventListener("click", () => openTabPicker());
+  node("p", "These comparisons cover the available text and this snapshot. A mismatch needs investigation and does not prove a leak. A match does not establish compliance, consent, or server retention.", websiteResults);
+
+  node("h3", "Documents checked", websiteResults);
+  const documents = node("ul", undefined, websiteResults);
+  for (const item of result.documents) {
+    const row = node("li", `${item.kind} · ${item.status}`, documents);
+    if (item.url) {
+      row.append(" · ");
+      linkTo("Open original", item.url, row);
+    } else {
+      row.append(` · ${item.detail}`);
+    }
+  }
+  if (result.documents.some((item) => item.status === "Read")) {
+    const query = new URLSearchParams({ q: `"${result.site}" privacy incident data breach public report` });
+    linkTo("Search the web for public privacy reports", `https://www.google.com/search?${query}`, websiteResults);
+  }
+}
+
+function showWebsiteInventory(result, target) {
+  node("h3", "What the website says about your data", target);
+  if (!result.statements.length) node("p", "No clear data statements could be extracted from the pages read.", target);
+  const grouped = groupStatements(result.statements, "data");
+  for (const [data, statements] of grouped) {
+    const summary = node("details", undefined, target);
+    node("summary", `${data} · ${summarizeStatements(statements)}`, summary);
+    for (const statement of statements) {
+      node("p", `${statementActions[statement.action]} · ${statementStances[statement.stance]}`, summary);
+      showQuote(statement, summary);
+    }
+  }
+  if (result.retention.length) {
+    const details = node("details", undefined, target);
+    node("summary", "How long the site says it keeps data", details);
+    for (const row of result.retention) showQuote(row, details);
+  }
+  if (result.observation) {
+    const details = node("details", undefined, target);
+    node("summary", "Browser evidence captured on this laptop", details);
+    const snapshot = result.observation;
+    node("p", `Captured ${new Date(snapshot.seen).toLocaleString()}`, details);
+    if (snapshot.forms.length) node("p", `Visible form categories · ${snapshot.forms.map((key) => browserDataLabels[key]).join(", ")}`, details);
+    const permissions = Object.entries(snapshot.permissions).map(([name, state]) => `${name} (${state})`);
+    if (permissions.length) node("p", `Browser permission states · ${permissions.join(", ")}`, details);
+    if (snapshot.requests.length) {
+      node("p", "Data categories observed in URL parameters", details);
+      const requests = node("ul", undefined, details);
+      for (const item of snapshot.requests) {
+        node("li", `${browserDataLabels[item.category]} · ${item.host} · ${item.count} observations`, requests);
+      }
+    }
+    const { local, session } = snapshot.storage;
+    node("p", `Browser storage entries · Local ${local ?? "unavailable"}, session ${session ?? "unavailable"}`, details);
+    if (snapshot.hosts.length) {
+      node("p", "Other hostnames in resource URLs", details);
+      const hosts = node("ul", undefined, details);
+      for (const host of snapshot.hosts) node("li", host, hosts);
+    }
+  }
+}
+
+function pickerUnavailable() {
+  finishPicker();
+  pickerMessage.textContent = "Tab picker unavailable in this browser. Open GhostPrint in Chrome or Edge with the companion extension, or enter a website below.";
+  byId("tab-picker-help").open = true;
+}
+
+function finishPicker() {
+  clearTimeout(pickerTimer);
+  pickerRequest = undefined;
+  pickerTarget = undefined;
+  cancelTabSelection.hidden = true;
+}
+
+function openTabPicker(target) {
+  if (pickerRequest) finishPicker();
+  byId("website-check").scrollIntoView();
+  cancelTabSelection.hidden = false;
+  pickerMessage.textContent = "Opening the browser tab picker…";
+  pickerRequest = crypto.randomUUID();
+  pickerTarget = target;
+  pickerTimer = setTimeout(pickerUnavailable, 2500);
+  window.postMessage({ type: "ghostprint-open-picker", request: pickerRequest, target }, location.origin);
+}
+
+for (const button of pickerControls) button.addEventListener("click", () => openTabPicker());
+cancelTabSelection.addEventListener("click", () => {
+  finishPicker();
+  pickerMessage.textContent = "Tab selection canceled.";
+});
+window.addEventListener("message", (event) => {
+  const data = event.data;
+  if (event.source !== window || event.origin !== location.origin || !pickerRequest || data?.request !== pickerRequest) return;
+  if (data.type === "ghostprint-picker-unavailable") pickerUnavailable();
+  if (data.type === "ghostprint-picker-opened") {
+    clearTimeout(pickerTimer);
+    pickerMessage.textContent = "Select a tab in the GhostPrint browser window.";
+    pickerTimer = setTimeout(() => {
+      finishPicker();
+      pickerMessage.textContent = "Tab selection timed out. Choose an open tab to try again.";
+    }, 180000);
+  }
+  if (data.type === "ghostprint-picker-result") {
+    const target = pickerTarget;
+    finishPicker();
+    pickerMessage.textContent = data.canceled ? "Tab selection canceled." : "";
+    if (data.snapshot?.site) {
+      const links = target && siteKey(target) === siteKey(data.snapshot.site) ? specificPolicyLinks(target) : {};
+      setWebsite(data.snapshot.site);
+      runSiteCheck({ website: data.snapshot.site, browser_evidence: data.snapshot, ...links });
+    }
+  }
+});
+
+async function runSiteCheck(data) {
+  activeWebsiteCheck?.abort();
+  const request = new AbortController();
+  activeWebsiteCheck = request;
+  const timeout = AbortSignal.timeout(24000);
+  const signal = AbortSignal.any([request.signal, timeout]);
+  if (pickerRequest) {
+    finishPicker();
+    pickerMessage.textContent = "";
+  }
+  websiteStatus.textContent = `Checking ${data.website}…`;
+  try {
+    const response = await fetch("/api/site/check", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+      signal
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || "Could not check the site.");
+    if (activeWebsiteCheck !== request) return;
+    if (result.capture_revision) lastCaptureRevision = Math.max(lastCaptureRevision, result.capture_revision);
+    const review = document.createDocumentFragment();
+    const results = document.createDocumentFragment();
+    showWebsiteReview(result, review);
+    showWebsite(result, results);
+    websiteReview.replaceChildren(review);
+    websiteResults.replaceChildren(results);
+    websiteStatus.textContent = `Check complete for ${result.site}`;
+  } catch (error) {
+    if (activeWebsiteCheck === request) {
+      const message = timeout.aborted ? "The website check timed out. Try again." : error.message;
+      websiteStatus.textContent = `Could not check ${data.website}. ${message}`;
+    }
+  } finally {
+    if (activeWebsiteCheck === request) activeWebsiteCheck = undefined;
+  }
+}
+
+function siteKey(website) {
+  try {
+    return new URL(website.includes("://") ? website : `https://${website}`).hostname.replace(/^www\./, "");
+  } catch {
+    return "";
+  }
+}
+
+const privacyInput = byId("policy-privacy");
+const termsInput = byId("policy-terms");
+websiteInput.addEventListener("input", () => clearOtherPolicyLinks(websiteInput.value.trim()));
+for (const input of [privacyInput, termsInput]) {
+  input.addEventListener("input", () => { policySite = siteKey(websiteInput.value.trim()); });
+}
+
+function setWebsite(site) {
+  websiteInput.value = site;
+  clearOtherPolicyLinks(site);
+}
+
+function clearOtherPolicyLinks(site) {
+  if (siteKey(site) !== policySite) {
+    privacyInput.value = "";
+    termsInput.value = "";
+    policySite = undefined;
+  }
+}
+
+function specificPolicyLinks(site) {
+  if (siteKey(site) !== policySite) return {};
+  return {
+    privacy_url: privacyInput.value.trim() || null,
+    terms_url: termsInput.value.trim() || null
+  };
+}
+
+websiteForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const site = websiteInput.value.trim();
+  const links = specificPolicyLinks(site);
+  setWebsite(site);
+  runSiteCheck({
+    website: site,
+    ...links
+  });
+});
+
+document.addEventListener("ghostprint:browser-captures", (event) => {
+  if (activeWebsiteCheck || pickerRequest) return;
+  const latest = Object.entries(event.detail).reduce((best, entry) => entry[1] > best[1] ? entry : best, ["", lastCaptureRevision]);
+  if (!latest[0]) return;
+  lastCaptureRevision = latest[1];
+  setWebsite(latest[0]);
+  runSiteCheck({ website: latest[0] });
+});
+
+document.addEventListener("ghostprint:browser-captures-cleared", () => {
+  activeWebsiteCheck?.abort();
+  activeWebsiteCheck = undefined;
+  finishPicker();
+  websiteReview.replaceChildren();
+  websiteResults.replaceChildren();
+  pickerMessage.textContent = "";
+  websiteStatus.textContent = "Browser captures and the website review were cleared.";
+});
