@@ -91,3 +91,10 @@ def local_ws_url(port: int) -> str:
     url = f"ws://127.0.0.1:{int(port)}"
     check_url(url)
     return url
+
+
+def loopback_port_in_use(port: int, timeout: float = 0.3) -> bool:
+    """Is something already listening on 127.0.0.1:<port>? Loopback only, by construction."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.settimeout(timeout)
+        return s.connect_ex(("127.0.0.1", int(port))) == 0

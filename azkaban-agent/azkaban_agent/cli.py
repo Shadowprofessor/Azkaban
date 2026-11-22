@@ -75,14 +75,10 @@ def build_parser() -> argparse.ArgumentParser:
 
 def _busy_ports(cfg) -> list[tuple[str, int]]:
     """Which of our loopback ports something is already listening on."""
-    import socket
-    busy = []
-    for name, port in (("dashboard socket", cfg.ws_port), ("capture proxy", cfg.proxy_port)):
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.settimeout(0.3)
-            if s.connect_ex(("127.0.0.1", port)) == 0:
-                busy.append((name, port))
-    return busy
+    from .net import loopback_port_in_use
+    return [(name, port) for name, port in (("dashboard socket", cfg.ws_port),
+                                            ("capture proxy", cfg.proxy_port))
+            if loopback_port_in_use(port)]
 
 
 def _busy_message(busy) -> str:
