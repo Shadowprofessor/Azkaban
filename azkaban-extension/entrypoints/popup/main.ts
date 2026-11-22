@@ -51,7 +51,7 @@ function render(site: string, t: TabStats | null, a: SiteAudit | null, s: Settin
       <div class="agentState">
         <div class="row" data-testid="bridge" title="${bridge.status === "connected" ? esc(`Agent ${bridge.agentVersion}, ${bridge.sent} findings sent`) : "The extension works on its own; start the agent to combine browser and network views."}">
           <span class="dot ${bridge.status === "connected" ? "dot-on" : "dot-off"}"></span>
-          <span class="muted" style="font-size:11px">${bridge.status === "connected" ? "Connected to agent" : "Standalone mode"}</span>
+          <span class="muted" style="font-size:11px">${bridge.status === "connected" ? "Connected to agent" : s.agentBridge ? "Agent not running" : "Not linked: Agent bridge is off"}</span>
         </div>
         <a class="dashLink" href="${DASHBOARD_URL}" target="_blank" rel="noreferrer" data-testid="dashboard-link" title="${bridge.status === "connected" ? "Opens the live flow view" : "Opens the dashboard; start the agent to see live data"}">Open Dashboard \u2197</a>
       </div>
