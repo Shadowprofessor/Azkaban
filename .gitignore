@@ -31,3 +31,6 @@ Claude outputs/
 
 # dashboard local env
 .env.local
+
+# local run logs (may contain host names from your traffic)
+logs/

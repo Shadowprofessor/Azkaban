@@ -52,10 +52,33 @@ Start-Sleep -Milliseconds 500
 Info "checking the reasoning model..."
 python -m azkaban_agent nim-check
 
-Start-Process powershell -ArgumentList "-NoExit", "-Command", "Set-Location '$root'; python -m azkaban_agent capture --i-own-this-device"
-Start-Process powershell -ArgumentList "-NoExit", "-Command", "Set-Location '$root\dashboard'; npm run dev"
-Start-Sleep -Seconds 6
-Start-Process "http://127.0.0.1:5173"
+# Both servers log to logs\ so a failure can be read afterwards (and by a helper session)
+# instead of only flashing past in a window that may close or hide.
+New-Item -ItemType Directory -Force -Path "$root\logs" | Out-Null
+$agentLog = "$root\logs\agent.log"
+$dashLog  = "$root\logs\dashboard.log"
+"" | Set-Content -Encoding utf8 $agentLog
+"" | Set-Content -Encoding utf8 $dashLog
+
+$agentCmd = "`$env:PYTHONUNBUFFERED='1'; `$env:PYTHONIOENCODING='utf-8'; Set-Location '$root'; " +
+            "python -m azkaban_agent capture --i-own-this-device 2>&1 | ForEach-Object { `$_ ; `$_ | Out-File -Append -Encoding utf8 '$agentLog' }"
+$dashCmd  = "Set-Location '$root\dashboard'; npm run dev 2>&1 | ForEach-Object { `$_ ; `$_ | Out-File -Append -Encoding utf8 '$dashLog' }"
+Start-Process powershell -ArgumentList "-NoExit", "-Command", $agentCmd -WindowStyle Normal
+Start-Process powershell -ArgumentList "-NoExit", "-Command", $dashCmd  -WindowStyle Normal
+
+# Do not claim success until both ports actually answer.
+function PortUp($port) {
+    try { $c = New-Object Net.Sockets.TcpClient; $c.Connect("127.0.0.1", $port); $c.Close(); return $true } catch { return $false }
+}
+$agentUp = $false; $dashUp = $false
+for ($i = 0; $i -lt 40; $i++) {
+    if (-not $agentUp) { $agentUp = PortUp 8787 }
+    if (-not $dashUp)  { $dashUp  = PortUp 5173 }
+    if ($agentUp -and $dashUp) { break }
+    Start-Sleep -Milliseconds 500
+}
+if ($agentUp) { Info "backend is up: ws://127.0.0.1:8787 (proxy 127.0.0.1:8080)" } else { Warn "backend did NOT start. Last lines of logs\agent.log:"; Get-Content $agentLog -Tail 15 }
+if ($dashUp) { Info "website is up: http://127.0.0.1:5173"; Start-Process "http://127.0.0.1:5173" } else { Warn "website did NOT start. Last lines of logs\dashboard.log:"; Get-Content $dashLog -Tail 15 }
 
 Write-Host ""
 Write-Host "Running. To see YOUR traffic:" -ForegroundColor Green

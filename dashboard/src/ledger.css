@@ -249,7 +249,9 @@ a { color: inherit; }
 .setup-card .agent-check-card b, .setup-card .consent-check b { color: #30372d; }
 .setup-card .agent-check-card small, .setup-card .consent-check small { color: #72786d; }
 .setup-card .consent-check { align-items: start; }
-.setup-card .custom-check { border-radius: 1px; border-color: #9ea492; color: var(--forest); }
+/* Tick hidden until checked: a visible tick on an unchecked box left the Continue
+   button disabled with no visible reason. */
+.setup-card .custom-check { border-radius: 1px; border-color: #9ea492; color: transparent; }
 .setup-card .consent-check input:checked + .custom-check { background: var(--forest); color: #fff; }
 .setup-card .consent-card-footer { color: #66745f; }
 .setup-close { color: #6d7468; }
