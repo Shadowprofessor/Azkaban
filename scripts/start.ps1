@@ -28,10 +28,24 @@ if (-not (Test-Path "dashboard\node_modules\.bin\vite.cmd")) {
     Push-Location dashboard; npm install --no-audit --no-fund; Pop-Location
 }
 
-# Extension build (once), so it can be loaded
-if (-not (Test-Path "azkaban-extension\.output\chrome-mv3\manifest.json")) {
-    Info "building the extension (first run only)..."
-    Push-Location azkaban-extension; if (-not (Test-Path "node_modules")) { npm install --no-audit --no-fund }; npm run build; Pop-Location
+# Extension build. Rebuilt when any source file is newer than the built manifest, not
+# only when the build is missing: after a git pull the old build would otherwise stay
+# loaded in Chrome and silently be out of date.
+$extOut = "azkaban-extension\.output\chrome-mv3\manifest.json"
+$needsBuild = -not (Test-Path $extOut)
+if (-not $needsBuild) {
+    $builtAt = (Get-Item $extOut).LastWriteTimeUtc
+    $newer = Get-ChildItem -Path "azkaban-extension\lib", "azkaban-extension\entrypoints" -Recurse -File -ErrorAction SilentlyContinue |
+             Where-Object { $_.LastWriteTimeUtc -gt $builtAt } | Select-Object -First 1
+    if ($newer) { $needsBuild = $true; Info "extension source changed since the last build" }
+}
+if ($needsBuild) {
+    Info "building the extension..."
+    Push-Location azkaban-extension
+    if (-not (Test-Path "node_modules\.bin\wxt.cmd")) { npm install --no-audit --no-fund }
+    npm run build
+    Pop-Location
+    if (Test-Path $extOut) { Info "extension built. In Chrome press Reload on the Azkaban card at chrome://extensions" } else { Warn "extension build failed; see the output above" }
 }
 
 # Anything left from an earlier start holds our ports and makes the new one fail.
