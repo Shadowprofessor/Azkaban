@@ -73,6 +73,27 @@ def build_parser() -> argparse.ArgumentParser:
     return p
 
 
+def _busy_ports(cfg) -> list[tuple[str, int]]:
+    """Which of our loopback ports something is already listening on."""
+    import socket
+    busy = []
+    for name, port in (("dashboard socket", cfg.ws_port), ("capture proxy", cfg.proxy_port)):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.settimeout(0.3)
+            if s.connect_ex(("127.0.0.1", port)) == 0:
+                busy.append((name, port))
+    return busy
+
+
+def _busy_message(busy) -> str:
+    ports = ", ".join(f"{n} {p}" for n, p in busy)
+    return ("[azkaban] already running: something is listening on " + ports + ".\n"
+            "          Most likely an earlier agent window is still open. Close it, or on Windows:\n"
+            "              Get-NetTCPConnection -LocalPort 8787,8080 -State Listen | "
+            "% { Stop-Process -Id $_.OwningProcess }\n"
+            "          or start this one on other ports: --ws-port 8788 --proxy-port 8081")
+
+
 def _cfg(args) -> Config:
     cfg = Config.from_env()
     if getattr(args, "proxy_port", None):
@@ -111,10 +132,20 @@ def main(argv: list[str] | None = None) -> int:
         from .safety import require_loopback, require_ownership
         require_ownership(args.owns)
         require_loopback(args.listen_host, "proxy")
+        cfg = _cfg(args)
+        busy = _busy_ports(cfg)
+        if busy:
+            print(_busy_message(busy), file=sys.stderr)
+            return 4
         try:
-            asyncio.run(Agent(_cfg(args), mode="live", record=args.record, consent=args.owns).run())
+            asyncio.run(Agent(cfg, mode="live", record=args.record, consent=args.owns).run())
         except KeyboardInterrupt:
             pass
+        except OSError as ex:
+            if getattr(ex, "errno", None) in (98, 48, 10048) or "10048" in str(ex):
+                print(_busy_message(_busy_ports(cfg) or [("port", 0)]), file=sys.stderr)
+                return 4
+            raise
         return 0
 
     if args.cmd == "replay":
@@ -188,7 +219,9 @@ def main(argv: list[str] | None = None) -> int:
         c = NimClient(cfg)
         print(f"[azkaban] endpoint {cfg.nim_url}")
         print(f"[azkaban] model    {c.model}")
-        print(f"[azkaban] key      {'set (' + cfg.nim_key[:8] + '...)' if cfg.nim_key else 'MISSING'}")
+        from .config import SOURCES
+        print(f"[azkaban] key      {'set (' + cfg.nim_key[:9] + '...)' if cfg.nim_key else 'MISSING'}"
+              f"  from {SOURCES.get('NVIDIA_API_KEY', 'environment')}")
         if not c.configured:
             print("[azkaban] NIM is not configured. Put NVIDIA_API_KEY in .env "
                   "(and do not set AZK_NIM_ENABLED=0).", file=sys.stderr)
@@ -212,7 +245,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"[azkaban] model is listed by the endpoint ({len(ids)} models available).")
         print(f"[azkaban] probing which models this key may call...")
         usable = []
-        for model in c.candidates()[:8]:
+        for model in c.candidates()[:12]:
             ok, why = c.try_model(model)
             mark = "OK " if ok else "-- "
             print(f"          {mark}{model:48} {'' if ok else why}")
@@ -225,7 +258,11 @@ def main(argv: list[str] | None = None) -> int:
                   "          then put the new key in .env. Verdicts fall back to local Ollama meanwhile.",
                   file=sys.stderr)
             return 3
-        best = usable[0]
+        nemo = [m for m in usable if "nemotron" in m.lower()]
+        best = nemo[0] if nemo else usable[0]
+        if not nemo:
+            print(f"[azkaban] NOTE: this key may call no Nemotron chat model. Using {best} so\n"
+                  "          verdicts still work. Enable Nemotron on build.nvidia.com to switch back.")
         if best != c.configured_model:
             print(f"[azkaban] '{c.configured_model}' is refused for this key. The agent will fall back\n"
                   f"          to '{best}' automatically; to make it permanent put this in .env:\n"

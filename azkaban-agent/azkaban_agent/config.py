@@ -10,15 +10,36 @@ DATA_DIR = PKG_DIR / "data"
 REPO_ROOT = PKG_DIR.parent.parent
 
 
+#: Where each setting came from: ".env" or "environment". Shown by nim-check.
+SOURCES: dict[str, str] = {}
+
+#: Keys where the project's .env beats an inherited environment variable. A stale
+#: NVIDIA_API_KEY left in Windows' user environment otherwise silently shadows the key the
+#: user just put in .env, which is exactly what happened. Everything else keeps the usual
+#: rule (environment wins), so one-off overrides like `AZK_WS_PORT=9000 azkaban ...` work.
+DOTENV_WINS = ("NVIDIA_API_KEY",)
+
+
 def _load_dotenv() -> None:
     for p in (Path.cwd() / ".env", REPO_ROOT / ".env"):
         if p.is_file():
-            for line in p.read_text(encoding="utf-8").splitlines():
+            for line in p.read_text(encoding="utf-8-sig").splitlines():
                 line = line.strip()
                 if not line or line.startswith("#") or "=" not in line:
                     continue
                 k, v = line.split("=", 1)
-                os.environ.setdefault(k.strip(), v.strip())
+                k, v = k.strip(), v.strip().strip('"').strip("'")
+                if k in DOTENV_WINS and v:
+                    if os.environ.get(k) and os.environ[k] != v:
+                        SOURCES[k] = ".env (overrides a different value in the environment)"
+                    else:
+                        SOURCES[k] = ".env"
+                    os.environ[k] = v
+                elif k not in os.environ:
+                    os.environ[k] = v
+                    SOURCES[k] = ".env"
+                else:
+                    SOURCES.setdefault(k, "environment")
             return
 
 

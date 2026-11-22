@@ -16,14 +16,34 @@ if (-not (Test-Path ".env")) { Copy-Item ".env.example" ".env"; Warn ".env creat
 python -c "import mitmproxy, websockets, onnxruntime" 2>$null
 if ($LASTEXITCODE -ne 0) { Info "installing the agent (first run only)..."; python -m pip install -e "azkaban-agent[dev]" }
 
-# Dashboard deps (once)
-if (-not (Test-Path "dashboard\node_modules")) { Info "installing the dashboard (first run only)..."; Push-Location dashboard; npm install --no-audit --no-fund; Pop-Location }
+# Dashboard deps. Checks for the vite launcher, not just the folder: a node_modules
+# copied from another OS (or an interrupted install) exists but cannot run.
+if (-not (Test-Path "dashboard\node_modules\.bin\vite.cmd")) {
+    Info "installing the dashboard (first run, or repairing a broken install)..."
+    if (Test-Path "dashboard\node_modules") { Remove-Item -Recurse -Force "dashboard\node_modules" }
+    Push-Location dashboard; npm install --no-audit --no-fund; Pop-Location
+}
 
 # Extension build (once), so it can be loaded
 if (-not (Test-Path "azkaban-extension\.output\chrome-mv3\manifest.json")) {
     Info "building the extension (first run only)..."
     Push-Location azkaban-extension; if (-not (Test-Path "node_modules")) { npm install --no-audit --no-fund }; npm run build; Pop-Location
 }
+
+# An agent left running from an earlier start holds 8787/8080 and makes the new one fail.
+# Stop only Python processes listening on exactly those ports: those are Azkaban agents.
+$old = Get-NetTCPConnection -LocalPort 8787,8080 -State Listen -ErrorAction SilentlyContinue |
+       Select-Object -ExpandProperty OwningProcess -Unique
+foreach ($procId in $old) {
+    $p = Get-Process -Id $procId -ErrorAction SilentlyContinue
+    if ($p -and $p.ProcessName -like "python*") {
+        Info "stopping an earlier agent (pid $procId) that still holds the ports"
+        Stop-Process -Id $procId -Force
+    } elseif ($p) {
+        Warn "port 8787/8080 is used by $($p.ProcessName) (pid $procId), not Azkaban. Close it first."
+    }
+}
+Start-Sleep -Milliseconds 500
 
 Info "checking the reasoning model..."
 python -m azkaban_agent nim-check

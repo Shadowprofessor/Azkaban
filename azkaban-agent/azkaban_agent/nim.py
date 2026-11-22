@@ -113,6 +113,22 @@ def _detail(response) -> str:
     return json.dumps(data)[:300]
 
 
+#: Model ids that are not chat models: probing them wastes the budget and their 404/403 is
+#: noise (the Windows run spent five of eight probes on embedders and safety classifiers).
+NOT_CHAT = ("embed", "safety", "guard", "reward", "rerank", "retriever", "parse", "clip",
+            "content-safety", "ocr", "asr", "tts", "vlm-embed", "pii")
+
+#: Last resort when the key may call no Nemotron model at all: a strong general model, so
+#: verdicts still come from NIM. Reported loudly; never chosen silently over Nemotron.
+GENERAL_FALLBACKS = ("meta/llama-3.3-70b-instruct", "meta/llama-3.1-70b-instruct",
+                     "mistralai/mixtral-8x22b-instruct-v0.1", "meta/llama-3.1-8b-instruct")
+
+
+def is_chat_model(model_id: str) -> bool:
+    m = (model_id or "").lower()
+    return not any(t in m for t in NOT_CHAT)
+
+
 class NimClient:
     """Chat-completions client for one configured model.
 
@@ -239,15 +255,20 @@ class NimClient:
             raise RuntimeError(f"NIM returned non-JSON: {(r.text or '')[:300]}") from None
 
     # ------------------------------------------------------------------ entitlement
-    def candidates(self) -> list[str]:
-        """Models worth trying, preferred first, limited to what the endpoint lists."""
+    def candidates(self, *, general: bool = True) -> list[str]:
+        """Chat models worth trying: configured, preferred Nemotrons, other listed Nemotrons,
+        then (only if `general`) strong non-Nemotron chat models as a last resort."""
         listed = self.models()
         order = [self.configured_model] + [m for m in FALLBACK_MODELS if m != self.configured_model]
         if listed:
             known = set(listed)
             order = [m for m in order if m in known]
             order += [m for m in listed if "nemotron" in m.lower() and m not in order]
-        return list(dict.fromkeys(order))
+            if general:
+                order += [m for m in GENERAL_FALLBACKS if m in known]
+        elif general:
+            order += list(GENERAL_FALLBACKS)
+        return [m for m in dict.fromkeys(order) if is_chat_model(m)]
 
     def try_model(self, model: str, timeout: int = 45) -> tuple[bool, str]:
         """One tiny completion against `model`. (ok, short reason)."""
@@ -266,7 +287,7 @@ class NimClient:
             return True, "ok"
         return False, f"HTTP {r.status_code}: {_detail(r)[:80]}"
 
-    def find_working_model(self, limit: int = 8) -> str | None:
+    def find_working_model(self, limit: int = 12) -> str | None:
         """First candidate this key can actually call. Cached for the rest of the run."""
         self._searched = True
         for model in self.candidates()[:limit]:
