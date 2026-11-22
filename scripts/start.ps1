@@ -34,20 +34,22 @@ if (-not (Test-Path "azkaban-extension\.output\chrome-mv3\manifest.json")) {
     Push-Location azkaban-extension; if (-not (Test-Path "node_modules")) { npm install --no-audit --no-fund }; npm run build; Pop-Location
 }
 
-# An agent left running from an earlier start holds 8787/8080 and makes the new one fail.
-# Stop only Python processes listening on exactly those ports: those are Azkaban agents.
-$old = Get-NetTCPConnection -LocalPort 8787,8080 -State Listen -ErrorAction SilentlyContinue |
+# Anything left from an earlier start holds our ports and makes the new one fail.
+# Stop only our own kinds of process on exactly our ports: python (agent, ghostprint)
+# and node (the website). Anything else listening there is reported, never touched.
+$ports = 8787, 8080, 8765, 5173
+$old = Get-NetTCPConnection -LocalPort $ports -State Listen -ErrorAction SilentlyContinue |
        Select-Object -ExpandProperty OwningProcess -Unique
 foreach ($procId in $old) {
     $p = Get-Process -Id $procId -ErrorAction SilentlyContinue
-    if ($p -and $p.ProcessName -like "python*") {
-        Info "stopping an earlier agent (pid $procId) that still holds the ports"
+    if ($p -and ($p.ProcessName -like "python*" -or $p.ProcessName -eq "node")) {
+        Info "stopping an earlier $($p.ProcessName) (pid $procId) that still holds a port"
         Stop-Process -Id $procId -Force
     } elseif ($p) {
-        Warn "port 8787/8080 is used by $($p.ProcessName) (pid $procId), not Azkaban. Close it first."
+        Warn "a port Azkaban needs is used by $($p.ProcessName) (pid $procId). Close it first."
     }
 }
-Start-Sleep -Milliseconds 500
+Start-Sleep -Milliseconds 800
 
 Info "checking the reasoning model..."
 python -m azkaban_agent nim-check
@@ -60,32 +62,50 @@ $dashLog  = "$root\logs\dashboard.log"
 "" | Set-Content -Encoding utf8 $agentLog
 "" | Set-Content -Encoding utf8 $dashLog
 
-$agentCmd = "`$env:PYTHONUNBUFFERED='1'; `$env:PYTHONIOENCODING='utf-8'; Set-Location '$root'; " +
-            "python -m azkaban_agent capture --i-own-this-device 2>&1 | ForEach-Object { `$_ ; `$_ | Out-File -Append -Encoding utf8 '$agentLog' }"
-$dashCmd  = "Set-Location '$root\dashboard'; npm run dev 2>&1 | ForEach-Object { `$_ ; `$_ | Out-File -Append -Encoding utf8 '$dashLog' }"
-Start-Process powershell -ArgumentList "-NoExit", "-Command", $agentCmd -WindowStyle Normal
-Start-Process powershell -ArgumentList "-NoExit", "-Command", $dashCmd  -WindowStyle Normal
+$gpLog = "$root\logs\ghostprint.log"
+"" | Set-Content -Encoding utf8 $gpLog
+
+# Each service runs from its own small generated .ps1 in logs\. That avoids nesting
+# quotes through Start-Process, which breaks on a path with a space ("Sachit Sharma").
+# Output is shown in the window AND appended to the log. "$_" turns stderr records into
+# plain text, so ordinary Python log lines are not shown as red NativeCommandError.
+function Launch($name, $title, $dir, $command, $log) {
+    $file = "$root\logs\run-$name.ps1"
+    @(
+        "`$Host.UI.RawUI.WindowTitle = '$title'"
+        "`$env:PYTHONUNBUFFERED = '1'; `$env:PYTHONIOENCODING = 'utf-8'"
+        "`$env:GHOSTPRINT_RETURN_URL = 'http://127.0.0.1:5173/'"
+        "Set-Location -LiteralPath '$dir'"
+        "$command 2>&1 | ForEach-Object { `"`$_`" } | Tee-Object -FilePath '$log' -Append"
+    ) | Set-Content -Encoding utf8 $file
+    Start-Process powershell -ArgumentList @("-NoExit", "-ExecutionPolicy", "Bypass", "-File", "`"$file`"")
+}
+Launch "agent"      "Azkaban agent"      $root              "python -m azkaban_agent capture --i-own-this-device" $agentLog
+Launch "ghostprint" "Azkaban ghostprint" $root              "python -m ghostprint live --port 8765"               $gpLog
+Launch "website"    "Azkaban website"    "$root\dashboard"  "npm run dev"                                          $dashLog
 
 # Do not claim success until both ports actually answer.
 function PortUp($port) {
     try { $c = New-Object Net.Sockets.TcpClient; $c.Connect("127.0.0.1", $port); $c.Close(); return $true } catch { return $false }
 }
-$agentUp = $false; $dashUp = $false
-for ($i = 0; $i -lt 40; $i++) {
+$agentUp = $false; $dashUp = $false; $gpUp = $false
+for ($i = 0; $i -lt 60; $i++) {
     if (-not $agentUp) { $agentUp = PortUp 8787 }
+    if (-not $gpUp)    { $gpUp    = PortUp 8765 }
     if (-not $dashUp)  { $dashUp  = PortUp 5173 }
-    if ($agentUp -and $dashUp) { break }
+    if ($agentUp -and $dashUp -and $gpUp) { break }
     Start-Sleep -Milliseconds 500
 }
-if ($agentUp) { Info "backend is up: ws://127.0.0.1:8787 (proxy 127.0.0.1:8080)" } else { Warn "backend did NOT start. Last lines of logs\agent.log:"; Get-Content $agentLog -Tail 15 }
-if ($dashUp) { Info "website is up: http://127.0.0.1:5173"; Start-Process "http://127.0.0.1:5173" } else { Warn "website did NOT start. Last lines of logs\dashboard.log:"; Get-Content $dashLog -Tail 15 }
+if ($agentUp) { Info "agent is up:      ws://127.0.0.1:8787  (capture proxy 127.0.0.1:8080)" } else { Warn "agent did NOT start. Last lines of logs\agent.log:"; Get-Content $agentLog -Tail 15 }
+if ($gpUp)    { Info "ghostprint is up: http://127.0.0.1:8765 (accounts, breach scan, site checks)" } else { Warn "ghostprint did NOT start. Last lines of logs\ghostprint.log:"; Get-Content $gpLog -Tail 15 }
+if ($dashUp)  { Info "website is up:    http://127.0.0.1:5173"; Start-Process "http://127.0.0.1:5173" } else { Warn "website did NOT start. Last lines of logs\dashboard.log:"; Get-Content $dashLog -Tail 15 }
 
 Write-Host ""
-Write-Host "Running. To see YOUR traffic:" -ForegroundColor Green
+Write-Host "To see YOUR traffic:" -ForegroundColor Green
 Write-Host "  1. Windows Settings > Network > Proxy > Manual: 127.0.0.1  port 8080"
 Write-Host "  2. Open http://mitm.it and install the Windows certificate (once)"
 Write-Host "  3. chrome://extensions > Developer mode > Load unpacked >"
 Write-Host "     $root\azkaban-extension\.output\chrome-mv3"
-Write-Host "  4. In the dashboard: accept, then Start local audit"
+Write-Host "  4. In the website: tick the box, I confirm and continue, then Start local audit"
 Write-Host ""
 Write-Host "When done: turn the Windows proxy OFF again, or your internet stops when the agent stops." -ForegroundColor Yellow

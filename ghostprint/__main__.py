@@ -23,7 +23,31 @@ def write_json(data, path=None):
         print(output, end="")
 
 
+def load_env():
+    """Read the repo-root .env, the same file the agent uses.
+
+    NVIDIA_API_KEY from .env wins over an inherited environment value: a stale key in the
+    Windows user environment otherwise shadows the one the user just set (seen in practice).
+    """
+    root = Path(__file__).resolve().parent.parent
+    for path in (Path.cwd() / ".env", root / ".env"):
+        if not path.is_file():
+            continue
+        for line in path.read_text(encoding="utf-8-sig").splitlines():
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, value = (part.strip() for part in line.split("=", 1))
+            value = value.strip('"').strip("'")
+            if key == "NVIDIA_API_KEY" and value:
+                os.environ[key] = value
+            else:
+                os.environ.setdefault(key, value)
+        return
+
+
 def main():
+    load_env()
     parser = argparse.ArgumentParser(prog="python -m ghostprint")
     commands = parser.add_subparsers(dest="command", required=True)
 

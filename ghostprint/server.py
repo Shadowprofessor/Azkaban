@@ -18,6 +18,7 @@ from .site_policy import browser_only_website, review_website, website_check
 from .speech import Speech
 from .voice import LocalVoice
 from .web_activity import WebActivity, answer, browser_hostname, hostname
+from . import integration
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -76,11 +77,13 @@ def dashboard(report, port, voice_model=None):
                 except ValueError:
                     parameters = {}
                 states, codes = parameters.get("state", []), parameters.get("code", [])
+                provider, ok = None, False
                 if len(states) == 1 and (len(codes) == 1 or "error" in parameters):
-                    connections.finish(states[0], codes[0] if len(codes) == 1 else None,
-                                       denied="error" in parameters)
+                    provider = connections.key_for_state(states[0])
+                    ok = connections.finish(states[0], codes[0] if len(codes) == 1 else None,
+                                            denied="error" in parameters)
                 self.send_response(303)
-                self.send_header("Location", "/#connected-apps")
+                self.send_header("Location", integration.after_oauth(provider, ok) or "/#connected-apps")
                 self.send_header("Cache-Control", "no-store")
                 self.send_header("Referrer-Policy", "no-referrer")
                 self.send_header("Content-Length", "0")
@@ -119,10 +122,13 @@ def dashboard(report, port, voice_model=None):
                 if not hmac.compare_digest(authorization, f"Bearer {pairing_code}".encode()):
                     self.send_json(401, {"error": "Pair the extension with this dashboard."})
                     return
-            elif origin != f"http://{self.headers.get('Host')}":
+            elif origin != f"http://{self.headers.get('Host')}" and origin not in integration.allowed_origins():
                 self.send_json(403, {"error": "Use the local dashboard to submit this request."})
                 return
             try:
+                handled = integration.handle_post(self, connections)
+                if handled:
+                    return
                 if self.path == "/api/connections":
                     body = json.loads(self.read_body(2048))
                     if (not isinstance(body, dict) or set(body) != {"provider", "action"}

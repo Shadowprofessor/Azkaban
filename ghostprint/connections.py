@@ -191,6 +191,11 @@ class Connections:
             "code_challenge_method": "S256", "prompt": "select_account",
         })
 
+    def key_for_state(self, state):
+        """Provider id a pending OAuth state belongs to, or None. Read-only."""
+        with self._lock:
+            return next((key for key, pending in self._pending.items() if pending[0] == state), None)
+
     def finish(self, state, code, denied=False):
         if not isinstance(state, str) or not re.fullmatch(r"[A-Za-z0-9_-]{43}", state):
             return False

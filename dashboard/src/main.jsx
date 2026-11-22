@@ -79,13 +79,16 @@ function App() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const outcome = params.get('oauth');
-    if (outcome !== 'connected' && outcome !== 'disconnected') return;
+    if (outcome !== 'connected' && outcome !== 'disconnected' && outcome !== 'failed') return;
     const provider = params.get('provider');
     const providerName = { instagram: 'Instagram', reddit: 'Reddit', spotify: 'Spotify', google: 'Google', github: 'GitHub' }[provider];
     if (providerName && outcome === 'connected') {
       const linked = store.getState().linkedApps;
       if (!linked.includes(providerName)) store.getState().setLinkedApps([...linked, providerName]);
       notify(`${providerName} account connected.`);
+    }
+    if (providerName && outcome === 'failed') {
+      notify(`${providerName} sign-in did not complete. Try again, or check the app's OAuth settings.`);
     }
     if (providerName && outcome === 'disconnected') {
       const linked = store.getState().linkedApps;
