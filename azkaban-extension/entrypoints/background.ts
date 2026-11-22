@@ -1,6 +1,6 @@
 import { defineBackground } from "wxt/utils/define-background";
 import { browser } from "wxt/browser";
-import { hostOf, isWebUrl, registrable } from "../lib/domain";
+import { hostOf, isAzkabanOwn, isWebUrl, registrable } from "../lib/domain";
 import { appendFlow, attachFindings, getSettings, type ExtFlow } from "../lib/store";
 import { scan, toHits } from "../lib/pii";
 import { addCookies, auditCookies, combine, idCore, idHash, type StorageReport } from "../lib/audit";
@@ -191,6 +191,8 @@ export default defineBackground({
     browser.webRequest.onBeforeRequest.addListener(
       (d) => {
         if (!isWebUrl(d.url) || d.tabId < 0) return undefined;
+        // Azkaban's own page and its calls to the agent are not the user's browsing.
+        if (isAzkabanOwn(d.initiator) || isAzkabanOwn(d.url)) return undefined;
         pending.set(d.requestId, { ts: Date.now(), reqBytes: bodySize(d) });
         return undefined;
       },

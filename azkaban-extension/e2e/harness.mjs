@@ -31,5 +31,12 @@ export async function launch() {
   let [sw] = ctx.serviceWorkers();
   if (!sw) sw = await ctx.waitForEvent("serviceworker");
   const extId = new URL(sw.url()).host;
+  // Test browsers must never talk to the user's REAL agent on 127.0.0.1:8787: fixture
+  // traffic would land in their history and on their dashboard as if it were theirs.
+  // Bridge tests run their own agent on a spare port and speak the protocol directly.
+  await sw.evaluate(async () => {
+    const cur = (await chrome.storage.local.get("settings")).settings ?? {};
+    await chrome.storage.local.set({ settings: { ...cur, agentBridge: false } });
+  });
   return { ctx, sw, extId };
 }

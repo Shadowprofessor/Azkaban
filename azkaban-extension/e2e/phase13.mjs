@@ -15,6 +15,7 @@ import { fileURLToPath } from "node:url";
 import { launch, startSite } from "./harness.mjs";
 import { flowsMsg, helloMsg, toWireFlow } from "../lib/bridgeProtocol.ts";
 import { normalise } from "../../dashboard/src/adapter.js";
+import { isAzkabanOwn } from "../lib/domain.ts";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 const PORT = 8794;
@@ -22,6 +23,10 @@ const EXT_ORIGIN = "chrome-extension://" + "b".repeat(32);
 let fail = 0;
 const ok = (c, m) => { if (!c) { console.log("FAIL " + m); fail++; } else console.log("ok   " + m); };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// ------------------------------------------------------------------ 0. own traffic is not the user's
+ok(isAzkabanOwn("http://127.0.0.1:5173/?view=radar") && isAzkabanOwn("ws://127.0.0.1:8787/ws"), "Azkaban's own website and agent are recognised");
+ok(!isAzkabanOwn("http://127.0.0.1:4777/") && !isAzkabanOwn("https://example.com:5173/"), "other local sites and remote hosts are still captured");
 
 // ------------------------------------------------------------------ 1-2. capture in Chromium
 const site = await startSite();

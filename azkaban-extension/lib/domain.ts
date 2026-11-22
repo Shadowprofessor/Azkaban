@@ -23,3 +23,18 @@ export function hostOf(url: string | undefined): string {
 export function isWebUrl(url: string | undefined): boolean {
   return !!url && /^https?:/i.test(url);
 }
+
+/** Ports Azkaban itself uses on this machine: website, agent socket, proxy, GhostPrint, Ollama. */
+export const AZKABAN_PORTS = new Set(["5173", "8787", "8080", "8765", "11434"]);
+const LOOPBACK = /^(localhost|127\.\d+\.\d+\.\d+|\[::1\])$/i;
+
+/** True for Azkaban's own traffic (the dashboard page and its calls), which is not the user's. */
+export function isAzkabanOwn(url: string | undefined): boolean {
+  if (!url) return false;
+  try {
+    const u = new URL(url);
+    return LOOPBACK.test(u.hostname) && AZKABAN_PORTS.has(u.port);
+  } catch {
+    return false;
+  }
+}
