@@ -15,10 +15,34 @@ import { setSettings } from "../lib/store";
 import { fingerprintToast, shouldSend, thirdPartyToast, unknownTrackerToast, type Toast } from "../lib/alerts";
 import { RECONNECT_ALARM, agentBridge, scheduleReconnect } from "../lib/agentBridge";
 import { rescore } from "../lib/tabs";
+import { isCookieBlocked, purgeDomain, removeCookie } from "../lib/cookies";
+import type { Settings } from "../lib/store";
+
+// Settings read on the hot path (every request). Refreshed on change; a stale copy for a
+// few ms only affects a label, never what is actually blocked (DNR does that).
+let settingsCache: Settings | null = null;
+const refreshSettings = () => getSettings().then((s) => (settingsCache = s)).catch(() => undefined);
+
+// Stream captured requests to the agent shortly after they land in the ring.
+let syncTimer: ReturnType<typeof setTimeout> | null = null;
+function kickSync() {
+  if (syncTimer) return;
+  syncTimer = setTimeout(() => {
+    syncTimer = null;
+    void agentBridge.syncFlows();
+  }, 800);
+}
+
+function cookiesStripped(host: string, thirdParty: boolean, site: string): boolean {
+  const s = settingsCache;
+  if (!s) return false;
+  if (isCookieBlocked(host, s.cookieBlocks ?? [])) return true;
+  return thirdParty && !!s.blockThirdPartyCookies && !s.allowlist.includes(site);
+}
 
 // Per-request scratch (requestId -> partial). Requests finish within seconds while the SW is
 // awake handling their events; nothing here needs to survive a SW restart.
-const pending = new Map<string, { ts: number; reqBytes: number; cookie?: boolean; referer?: string }>();
+const pending = new Map<string, { ts: number; reqBytes: number; cookie?: boolean; referer?: string; setCookies?: string[] }>();
 
 function bodySize(details: { requestBody?: { raw?: { bytes?: ArrayBuffer }[]; formData?: Record<string, unknown[]> } | null }) {
   const rb = details.requestBody;
@@ -134,7 +158,10 @@ type PatronusCmd =
   | { type: "patronus"; action: "block"; domains: string[] }
   | { type: "patronus"; action: "unblock"; domains: string[] }
   | { type: "patronus"; action: "pause"; site: string }
-  | { type: "patronus"; action: "resume"; site: string };
+  | { type: "patronus"; action: "resume"; site: string }
+  | { type: "patronus"; action: "cookieBlock"; domains: string[] }
+  | { type: "patronus"; action: "cookieUnblock"; domains: string[] }
+  | { type: "patronus"; action: "thirdPartyCookies"; on: boolean };
 
 const DOMAIN = /^[a-z0-9.-]+\.[a-z]{2,}$/i;
 
@@ -147,6 +174,14 @@ async function patronus(c: PatronusCmd) {
   if (c.action === "unblock") await setSettings({ customBlocks: s.customBlocks.filter((d) => !c.domains.includes(d)) });
   if (c.action === "pause" && (DOMAIN.test(c.site) || /^\d{1,3}(\.\d{1,3}){3}$/.test(c.site))) await setSettings({ allowlist: [...new Set([...s.allowlist, c.site])] });
   if (c.action === "resume") await setSettings({ allowlist: s.allowlist.filter((d) => d !== c.site) });
+  if (c.action === "cookieBlock") {
+    const doms = c.domains.map((d) => d.replace(/^\./, "").toLowerCase()).filter((d) => DOMAIN.test(d));
+    await setSettings({ cookieBlocks: [...new Set([...(s.cookieBlocks ?? []), ...doms])] });
+    for (const d of doms) await purgeDomain(d); // what is already in the jar goes too
+  }
+  if (c.action === "cookieUnblock") await setSettings({ cookieBlocks: (s.cookieBlocks ?? []).filter((d) => !c.domains.includes(d)) });
+  if (c.action === "thirdPartyCookies") await setSettings({ blockThirdPartyCookies: !!c.on });
+  await refreshSettings();
   return syncRules(await getSettings()); // apply now; don't wait for the storage event
 }
 
@@ -178,8 +213,26 @@ export default defineBackground({
       ["requestHeaders", "extraHeaders"],
     );
 
+    // Set-Cookie is only visible with extraHeaders. Cookie NAMES are kept, never values.
+    browser.webRequest.onHeadersReceived.addListener(
+      (d) => {
+        const p = pending.get(d.requestId);
+        if (!p) return undefined;
+        for (const h of d.responseHeaders ?? []) {
+          if (h.name.toLowerCase() !== "set-cookie" || !h.value) continue;
+          for (const line of h.value.split("\n")) {
+            const name = line.split("=", 1)[0]!.trim().slice(0, 128);
+            if (name && !(p.setCookies ??= []).includes(name)) p.setCookies.push(name);
+          }
+        }
+        return undefined;
+      },
+      { urls: ["<all_urls>"] },
+      ["responseHeaders", "extraHeaders"],
+    );
+
     let thirdPartyCount = 0;
-    const finish = (d: { requestId: string; url: string; method: string; initiator?: string; ip?: string; tabId: number; type?: string; responseHeaders?: { name: string; value?: string }[]; error?: string }) => {
+    const finish = (d: { requestId: string; url: string; method: string; initiator?: string; ip?: string; tabId: number; type?: string; statusCode?: number; timeStamp?: number; responseHeaders?: { name: string; value?: string }[]; error?: string }, blockedRequest = false) => {
       const p = pending.get(d.requestId);
       pending.delete(d.requestId);
       if (!p || !isWebUrl(d.url)) return;
@@ -206,8 +259,21 @@ export default defineBackground({
         thirdParty: registrable(url.hostname) !== site,
         source: "extension",
         initiator: site,
+        tabId: d.tabId,
+        status: d.statusCode ?? 0,
+        rtype: d.type ?? "other",
+        ms: d.timeStamp ? Math.max(0, Math.round(d.timeStamp - p.ts)) : 0,
+        scheme: url.protocol.replace(":", ""),
+        queryKeys: [...new Set([...url.searchParams.keys()])].slice(0, 30).map((k) => k.slice(0, 64)),
+        cookieSent: !!p.cookie,
+        setCookies: p.setCookies ?? [],
+        ...(d.error && !blockedRequest ? { error: d.error.slice(0, 80) } : {}),
       };
+      if (blockedRequest) flow.blocked = "request";
+      else if (cookiesStripped(url.hostname, flow.thirdParty, site)) flow.blocked = "cookies";
       appendFlow(flow);
+      kickSync();
+      if (blockedRequest) return; // never reached the network: nothing to classify or count
       // Unlisted third party: feed the in-browser classifier (same model as the agent).
       if (flow.thirdParty && !tracker && d.tabId >= 0 && /[a-z]/i.test(url.hostname)) {
         const ref = p.referer ?? "";
@@ -320,11 +386,11 @@ export default defineBackground({
     browser.webRequest.onErrorOccurred.addListener(
       (d) => {
         if (d.error === "net::ERR_BLOCKED_BY_CLIENT" && d.tabId >= 0) {
-          pending.delete(d.requestId);
           const site = registrable(hostOf(d.initiator) || hostOf(d.url));
           void bumpTab(d.tabId, site, (t) => {
             t.blocked++;
           });
+          finish({ ...d, responseHeaders: [] }, true); // still listed, marked blocked
           return;
         }
         finish({ ...d, responseHeaders: [] });
@@ -335,6 +401,17 @@ export default defineBackground({
     // Keep DNR rules in sync with settings (install, browser start, any settings change).
     const resync = () => void getSettings().then(syncRules).catch(() => undefined);
     browser.runtime.onInstalled.addListener(resync);
+    void refreshSettings();
+    browser.storage.local.onChanged.addListener((changes) => {
+      if (changes.settings) void refreshSettings();
+    });
+    // Cookies written by page script (document.cookie) never pass a header rule: remove
+    // them as they appear on a blocked domain.
+    browser.cookies.onChanged.addListener((info) => {
+      if (info.removed) return;
+      const blocks = settingsCache?.cookieBlocks ?? [];
+      if (blocks.length && isCookieBlocked(info.cookie.domain, blocks)) void removeCookie(info.cookie);
+    });
     browser.runtime.onStartup.addListener(resync);
     browser.storage.local.onChanged.addListener((changes) => {
       if (changes.settings) resync();

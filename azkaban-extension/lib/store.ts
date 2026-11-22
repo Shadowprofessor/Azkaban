@@ -11,6 +11,17 @@ export interface ExtFlow extends Flow {
   source: "extension";
   initiator: string; // site eTLD+1 that caused the request
   findings?: { kind: string; detail: string }[];
+  // Inspector fields (extension-only, all optional so older stored flows still load).
+  tabId?: number;
+  status?: number; // HTTP status, 0 when the request failed or was blocked
+  rtype?: string; // webRequest resource type: script, xmlhttprequest, image, ...
+  ms?: number; // request start -> completion
+  scheme?: string; // http / https / ws / wss
+  queryKeys?: string[]; // parameter NAMES only; values can carry identifiers
+  cookieSent?: boolean; // a Cookie header went out with the request
+  setCookies?: string[]; // cookie NAMES the response tried to set (values never kept)
+  blocked?: "request" | "cookies"; // Patronus blocked the request, or stripped its cookies
+  error?: string;
 }
 
 export interface Settings {
@@ -20,6 +31,8 @@ export interface Settings {
   allowlist: string[]; // sites where blocking is paused ("site broken? pause here")
   customBlocks: string[]; // extra domains blocked by the user
   knownHashes: string[]; // sha256 of the user's own identifiers (raw values never stored)
+  cookieBlocks: string[]; // domains whose cookies are stripped both ways and purged
+  blockThirdPartyCookies: boolean; // strip cookies on every third-party request
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -29,6 +42,8 @@ export const DEFAULT_SETTINGS: Settings = {
   allowlist: [],
   customBlocks: [],
   knownHashes: [],
+  cookieBlocks: [],
+  blockThirdPartyCookies: false,
 };
 
 export async function getSettings(): Promise<Settings> {
@@ -75,7 +90,21 @@ async function flushUnlocked(): Promise<void> {
   if (!queue.length) return;
   const batch = queue;
   queue = [];
-  const flows = await getFlows();
+  let flows = await getFlows();
+  // A body finding can arrive before its request completes, and is then recorded on its own
+  // (attachFindings). When the request lands, fold that placeholder into it: one request,
+  // one row, with the findings attached.
+  for (const f of batch) {
+    const i = flows.slice(0, 200).findIndex(
+      (o) => o.id.startsWith("ext-body-") && o.host === f.host && o.path === f.path && Math.abs(o.ts - f.ts) < 15_000,
+    );
+    if (i < 0) continue;
+    const body = flows[i]!;
+    f.pii = body.pii;
+    f.severity = Math.max(f.severity, body.severity);
+    if (body.findings?.length) f.findings = body.findings;
+    flows = flows.filter((_, j) => j !== i);
+  }
   const next = [...batch.reverse(), ...flows].slice(0, RING_MAX);
   await browser.storage.session.set({ flows: next });
 }

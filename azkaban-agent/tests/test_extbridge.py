@@ -161,7 +161,7 @@ async def test_malformed_producer_input_is_rejected_without_dropping_the_socket(
 async def test_an_oversized_message_is_refused(server):
     async with await ext_connect() as ws:
         await ws.send(json.dumps({"type": "browser_detection", "data": {"host": "a.io",
-                                                                        "path": "x" * 70000}}))
+                                                                        "path": "x" * 300000}}))
         err = json.loads(await asyncio.wait_for(ws.recv(), 5))
     assert err["code"] == "too_large"
 

@@ -35,6 +35,32 @@ export function siteScoreMsg(score: SiteScore, site: string) {
   };
 }
 
+/** The fields of a captured request the agent may receive. No query values, header values,
+ * cookie values or bodies: names and sizes only. */
+export interface WireFlow {
+  id: string; ts: number; site: string; host: string; method: string; path: string; ip: string;
+  bytes: number; status: number; rtype: string; ms: number; scheme: string; thirdParty: boolean;
+  cookieSent: boolean; setCookies: string[]; blocked: string; queryKeys: string[];
+}
+
+export function toWireFlow(f: {
+  id: string; ts: number; initiator?: string; app?: string; host: string; method: string; path: string;
+  ip?: string; bytes?: number; status?: number; rtype?: string; ms?: number; scheme?: string;
+  thirdParty?: boolean; cookieSent?: boolean; setCookies?: string[]; blocked?: string; queryKeys?: string[];
+}): WireFlow {
+  return {
+    id: f.id.slice(0, 64), ts: f.ts, site: f.initiator || f.app || "", host: f.host, method: f.method,
+    path: (f.path || "/").split("?")[0]!.slice(0, 2048), ip: f.ip ?? "", bytes: f.bytes ?? 0,
+    status: f.status ?? 0, rtype: f.rtype ?? "other", ms: f.ms ?? 0, scheme: f.scheme ?? "",
+    thirdParty: !!f.thirdParty, cookieSent: !!f.cookieSent, setCookies: (f.setCookies ?? []).slice(0, 20),
+    blocked: f.blocked ?? "", queryKeys: (f.queryKeys ?? []).slice(0, 30),
+  };
+}
+
+export function flowsMsg(flows: WireFlow[]) {
+  return { type: "browser_flows" as const, data: flows };
+}
+
 export function pingMsg() {
   return { type: "ping" as const };
 }

@@ -45,9 +45,9 @@ for (const domain of made) {
 ok((await queue.read()).length === 3, "3 findings queued while the agent was down");
 
 // ---------------------------------------------------------------- agent comes back
-const agent = spawn("python3", ["-c", PY], { cwd: root, stdio: ["ignore", "pipe", "pipe"] });
+const agent = spawn(process.platform === "win32" ? "python" : "python3", ["-c", PY], { cwd: root, stdio: ["ignore", "pipe", "pipe"] });
 const lines = [];
-agent.stdout.on("data", (b) => String(b).split("\n").filter(Boolean).forEach((l) => lines.push(l)));
+agent.stdout.on("data", (b) => String(b).split("\n").filter(Boolean).forEach((l) => lines.push(l.trim())));
 const waitFor = async (pred, ms = 12000) => {
   const end = Date.now() + ms;
   while (Date.now() < end) { const h = lines.find(pred); if (h) return h; await new Promise((r) => setTimeout(r, 100)); }

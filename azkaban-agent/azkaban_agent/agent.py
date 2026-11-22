@@ -35,11 +35,15 @@ class Agent:
         self.cfg = cfg
         self.mode = mode
         self.loop: asyncio.AbstractEventLoop | None = None
-        self.ext = ExtensionBridge(self.status, self.on_browser_detection, self.on_site_score)
+        self.ext = ExtensionBridge(self.status, self.on_browser_detection, self.on_site_score,
+                                   on_flow=self.on_browser_flow)
         self.hub = Hub(self.status, self.on_command, extension=self.ext)
         self.site_scores: dict[str, dict] = {}        # site -> latest extension score
+        # Only real capture is kept. Replay, demo and test agents must never write the user's
+        # history: their fixture flows would come back as "your data" on the next start.
         self.history = FlowHistory(REPO_ROOT / "evidence" / "history.db",
-                                   keep_days=cfg.history_days, enabled=cfg.history_enabled)
+                                   keep_days=cfg.history_days,
+                                   enabled=cfg.history_enabled and mode == "live")
         self.hub.history_provider = self._replay_history
         self.idle_sessions = IdleSessions()
         self.correlator = Correlator()
@@ -115,6 +119,31 @@ class Agent:
             "data": {**d, "company": d["company"] or d["domain"], "host": d["host"]},
         })
 
+    async def on_browser_flow(self, raw: dict) -> None:
+        """One request the browser made, already validated by extbridge.
+
+        Enriched like a proxy flow and sent to the dashboard as an ordinary `flow` with
+        source "extension", so the live views show browser traffic with no system proxy set
+        up. Not added to the exposure score, for the same double-counting reason as above.
+        """
+        if not self.capturing:
+            return
+        try:
+            enriched = self.pipeline.process(raw)
+        except Exception as e:  # one bad flow never breaks the bridge
+            self.hub.error("pipeline", f"{type(e).__name__}: {e}")
+            return
+        flow_dict = enriched.flow.to_dict()
+        extend_flow(flow_dict, raw, enriched, idle=None, corr=self.correlator, idle_measured=False)
+        flow_dict.update({k: raw[k] for k in ("source", "rtype", "thirdParty", "cookieSent",
+                                               "setCookies", "blocked", "queryKeys") if k in raw})
+        self.hub.publish({"type": "flow", "flow": flow_dict})
+        self.history.add(flow_dict)
+        self.evidence.add_flow(flow_dict)
+        self.recent[enriched.flow.id] = enriched
+        if len(self.recent) > 2000:
+            self.recent.popitem(last=False)
+
     @staticmethod
     def _browser_title(d: dict) -> str:
         kind, dom = d["kind"], d["domain"]
@@ -160,7 +189,8 @@ class Agent:
             "idleThresholdMs": self.idle_sessions.threshold_ms,
             # Additive (v1): extension bridge state, for the popup's connected indicator.
             "extension": {"connected": self.ext.clients > 0, "version": self.ext.version,
-                          "detections": self.ext.detections, "scores": self.ext.scores},
+                          "detections": self.ext.detections, "scores": self.ext.scores,
+                          "flows": self.ext.flows},
             # Additive (v1): which reasoning engine answered last, for the UI badge.
             "llmEngine": self.legal.engine,
             "llmModel": self.legal.nim.model if self.legal.nim.configured else self.cfg.ollama_model,

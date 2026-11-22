@@ -11,8 +11,8 @@
 // MV3: the service worker is evicted when idle, which takes any setTimeout with it. The
 // reconnect therefore runs off browser.alarms, which survive eviction and wake the worker.
 import { browser } from "wxt/browser";
-import { getSettings } from "./store";
-import { detectionMsg, helloMsg, siteScoreMsg } from "./bridgeProtocol";
+import { getFlows, getSettings } from "./store";
+import { detectionMsg, flowsMsg, helloMsg, siteScoreMsg, toWireFlow } from "./bridgeProtocol";
 import type { SiteScore } from "./scoring";
 
 export const AGENT_WS_URL = "ws://127.0.0.1:8787/ws/extension";
@@ -21,6 +21,10 @@ export const RECONNECT_ALARM = "azkaban-agent-reconnect";
 const RECONNECT_MINUTES = 1;
 const STATE_KEY = "bridge";
 const QUEUE_KEY = "bridgeQueue";
+/** Ids of requests already streamed to the agent (session-scoped, like the ring itself). */
+const SENT_FLOWS_KEY = "bridgeFlowsSent";
+const FLOW_BATCH = 100;
+const SENT_FLOWS_MAX = 3000;
 /** Findings held while the agent is down. Oldest dropped first when full. */
 export const QUEUE_MAX = 500;
 
@@ -93,6 +97,9 @@ export interface BrowserDetection {
 class AgentBridge {
   private ws: WebSocket | null = null;
   private connecting = false;
+  private syncing = false;
+  private syncAgain = false;
+  private lastConnectTry = 0;
 
   private get open(): boolean {
     return this.ws?.readyState === WebSocket.OPEN;
@@ -127,7 +134,7 @@ class AgentBridge {
           void patchState({
             status: "connected", agentVersion: msg.agent_version ?? "",
             engines: msg.engines ?? {}, lastError: "", since: Date.now(),
-          }).then(() => this.drain());      // catch the agent up on what it missed
+          }).then(() => this.drain()).then(() => this.syncFlows());  // catch the agent up
         } else if (msg.type === "error") {
           // The agent rejected something we sent; worth surfacing, not worth dropping the link.
           void patchState({ lastError: String(msg.message ?? "").slice(0, 200) });
@@ -196,6 +203,47 @@ class AgentBridge {
     if (sent) {
       const s = await getBridgeState();
       await patchState({ sent: s.sent + sent });
+    }
+  }
+
+  /**
+   * Stream every captured request the agent has not seen yet, oldest first.
+   *
+   * Reads the extension's own request ring, so requests made while the agent was down are
+   * sent as soon as it is back (as long as the browser stayed open). Safe to call often:
+   * concurrent calls collapse into one more pass.
+   */
+  async syncFlows(): Promise<void> {
+    if (!this.open) {
+      // Requests arrive many times a second; do not open a socket attempt for each one.
+      if (Date.now() - this.lastConnectTry > 10_000) {
+        this.lastConnectTry = Date.now();
+        void this.connect();
+      }
+      return;
+    }
+    if (this.syncing) {
+      this.syncAgain = true;
+      return;
+    }
+    this.syncing = true;
+    try {
+      do {
+        this.syncAgain = false;
+        const r = await browser.storage.session.get(SENT_FLOWS_KEY);
+        const sent = new Set<string>(Array.isArray(r[SENT_FLOWS_KEY]) ? (r[SENT_FLOWS_KEY] as string[]) : []);
+        const todo = (await getFlows()).filter((f) => !sent.has(f.id)).reverse();
+        for (let i = 0; i < todo.length && this.open; i += FLOW_BATCH) {
+          const batch = todo.slice(i, i + FLOW_BATCH);
+          this.ws!.send(JSON.stringify(flowsMsg(batch.map(toWireFlow))));
+          batch.forEach((f) => sent.add(f.id));
+        }
+        await browser.storage.session.set({ [SENT_FLOWS_KEY]: [...sent].slice(-SENT_FLOWS_MAX) });
+      } while (this.syncAgain && this.open);
+    } catch {
+      /* socket closed mid-batch: the unsent rest goes on the next pass */
+    } finally {
+      this.syncing = false;
     }
   }
 

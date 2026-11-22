@@ -25,7 +25,8 @@ from typing import Awaitable, Callable
 
 from .schema import PII_TYPES
 
-MAX_MESSAGE = 64 * 1024          # a detection is small; anything larger is a mistake or an attack
+MAX_MESSAGE = 256 * 1024         # fits a batch of MAX_FLOW_BATCH request summaries
+MAX_FLOW_BATCH = 200
 MAX_PII_HITS = 16
 MAX_STR = 255
 MAX_PATH = 2048
@@ -115,6 +116,66 @@ def clean_detection(raw) -> dict | None:
     }
 
 
+METHODS = ("GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS", "CONNECT", "TRACE")
+RTYPES = ("main_frame", "sub_frame", "stylesheet", "script", "image", "font", "object",
+          "xmlhttprequest", "ping", "csp_report", "media", "websocket", "webtransport",
+          "webbundle", "other")
+COOKIE_NAME = re.compile(r"^[!#$%&'*+.^_`|~0-9A-Za-z-]{1,128}$")
+FLOW_ID = re.compile(r"^[A-Za-z0-9_.:-]{1,64}$")
+IP = re.compile(r"^[0-9a-fA-F:.]{2,64}$")
+MAX_FLOW_AGE_MS = 7 * 24 * 3600 * 1000   # backfill window after the agent was down
+
+
+def clean_browser_flow(raw, now_ms: int | None = None) -> dict | None:
+    """One request the browser made, as a raw flow for the pipeline, or None.
+
+    Shaped like capture.py's raw dicts so it goes through the same enrichment (tracker,
+    company, geo). Deliberately carries no query values, header values, cookie values or
+    bodies: the extension sends none, and anything else that arrives is dropped here.
+    """
+    if not isinstance(raw, dict):
+        return None
+    host = _host(raw.get("host"))
+    method = _s(raw.get("method"), 16).upper()
+    if not host or method not in METHODS:
+        return None
+    now = now_ms if now_ms is not None else int(time.time() * 1000)
+    ts = _i(raw.get("ts"), 0, 2**62)
+    if not (now - MAX_FLOW_AGE_MS <= ts <= now + 60_000):
+        ts = now
+    fid = _s(raw.get("id"), 64)
+    rtype = _s(raw.get("rtype"), 32)
+    path = _s(raw.get("path"), MAX_PATH).split("?", 1)[0].split("#", 1)[0]
+    cookies = raw.get("setCookies") if isinstance(raw.get("setCookies"), list) else []
+    keys = raw.get("queryKeys") if isinstance(raw.get("queryKeys"), list) else []
+    blocked = _s(raw.get("blocked"), 16)
+    ip = _s(raw.get("ip"), 64)
+    return {
+        "id": fid if FLOW_ID.match(fid) else f"ext-{ts}-{host}"[:64],
+        "ts": ts,
+        "app": _host(raw.get("site")) or "browser",
+        "host": host,
+        "method": method,
+        "path": path or "/",
+        "ip": ip if IP.match(ip) else "",
+        "bytes": _i(raw.get("bytes"), 0, 2**31),
+        "decrypted": True,          # seen inside the browser, before TLS
+        "headers": {}, "query": "", "body": "", "note": "",
+        "status": _i(raw.get("status"), 0, 599),
+        "proto": _s(raw.get("scheme"), 8).lower(),
+        "dur_ms": _i(raw.get("ms"), 0, 3_600_000),
+        "resp_type": "",
+        # extension-only fields, carried through to the dashboard
+        "source": "extension",
+        "rtype": rtype if rtype in RTYPES else "other",
+        "thirdParty": bool(raw.get("thirdParty")),
+        "cookieSent": bool(raw.get("cookieSent")),
+        "setCookies": [c for c in (_s(x, 128) for x in cookies[:20]) if COOKIE_NAME.match(c)],
+        "blocked": blocked if blocked in ("request", "cookies") else "",
+        "queryKeys": [k for k in (_s(x, 64) for x in keys[:30]) if k],
+    }
+
+
 def clean_site_score(raw) -> dict | None:
     """Normalise a site safety score from the popup (lib/scoring.ts)."""
     if not isinstance(raw, dict):
@@ -153,11 +214,14 @@ class ExtensionBridge:
 
     def __init__(self, status_fn: Callable[[], dict],
                  on_detection: Callable[[dict], Awaitable[None]],
-                 on_site_score: Callable[[dict], Awaitable[None]]):
+                 on_site_score: Callable[[dict], Awaitable[None]],
+                 on_flow: Callable[[dict], Awaitable[None]] | None = None):
         self.status_fn = status_fn
         self.on_detection = on_detection
         self.on_site_score = on_site_score
+        self.on_flow = on_flow
         self.clients = 0
+        self.flows = 0
         self.detections = 0
         self.scores = 0
         self.version = ""           # extension version from the last handshake
@@ -182,7 +246,7 @@ class ExtensionBridge:
                 if isinstance(raw, (bytes, bytearray)):
                     raw = raw.decode("utf-8", "replace")
                 if len(raw) > MAX_MESSAGE:
-                    await self._err(ws, "too_large", "message exceeds 64 KiB")
+                    await self._err(ws, "too_large", "message exceeds 256 KiB")
                     continue
                 try:
                     msg = json.loads(raw)
@@ -211,6 +275,16 @@ class ExtensionBridge:
                 return
             self.detections += 1
             await self.on_detection(d)
+            return
+        if t == "browser_flows":
+            # A batch of requests the browser made (live, or backfill after the agent was down).
+            items = msg.get("data") if isinstance(msg.get("data"), list) else []
+            for item in items[:MAX_FLOW_BATCH]:
+                f = clean_browser_flow(item)
+                if f is None or self.on_flow is None:
+                    continue
+                self.flows += 1
+                await self.on_flow(f)
             return
         if t == "site_score":
             s = clean_site_score(msg.get("data"))

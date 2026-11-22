@@ -47,9 +47,9 @@ async def main():
 asyncio.run(main())
 `;
 
-const agent = spawn("python3", ["-c", PY], { cwd: root, stdio: ["ignore", "pipe", "pipe"] });
+const agent = spawn(process.platform === "win32" ? "python" : "python3", ["-c", PY], { cwd: root, stdio: ["ignore", "pipe", "pipe"] });
 const lines = [];
-agent.stdout.on("data", (b) => String(b).split("\n").filter(Boolean).forEach((l) => lines.push(l)));
+agent.stdout.on("data", (b) => String(b).split("\n").filter(Boolean).forEach((l) => lines.push(l.trim())));
 agent.stderr.on("data", (b) => { const t = String(b).trim(); if (t && !t.includes("Warning")) lines.push("ERR " + t); });
 const waitFor = async (pred, ms = 12000) => {
   const end = Date.now() + ms;
