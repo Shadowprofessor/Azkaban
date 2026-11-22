@@ -3,7 +3,7 @@
 # Run it as a FILE from the repo root (do not paste it line by line):
 #     powershell -ExecutionPolicy Bypass -File scripts\finish-v1.ps1
 #
-# 1. pushes v1 to GitHub as v1, V1 and main (all fast-forwards)
+# 1. pushes main to GitHub (the only branch the project ships from)
 # 2. calls NVIDIA NIM for real and reports which Nemotron models your key may use
 # 3. installs Playwright Chromium and runs the extension's browser checks
 # It is written so that pasting it still works: every else is on its brace's line.
@@ -15,12 +15,12 @@ function Bad($m)  { Write-Host "  !!  $m" -ForegroundColor Red }
 
 if (-not (Test-Path ".git")) { Bad "Run this from the repo root (C:\Users\...\Azkaban)."; return }
 
-Step "1/3  publish v1, V1 and main"
+Step "1/3  publish main"
 git fetch origin
 $branch = (git rev-parse --abbrev-ref HEAD).Trim()
-if ($branch -ne "v1") { git checkout v1 }
-git push origin v1 v1:V1 v1:main
-if ($LASTEXITCODE -eq 0) { Good "pushed v1 -> v1, V1 and main" } else { Bad "push failed; read the git message above (auth: run 'gh auth login')"; $failed += "push" }
+if ($branch -ne "main") { git checkout main }
+git push origin main
+if ($LASTEXITCODE -eq 0) { Good "pushed main" } else { Bad "push failed; read the git message above (auth: run 'gh auth login')"; $failed += "push" }
 
 Step "2/3  Nemotron on NVIDIA NIM"
 if (Test-Path ".env") {

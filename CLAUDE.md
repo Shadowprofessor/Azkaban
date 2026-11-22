@@ -7,5 +7,5 @@
   (or `python azkaban-agent/scripts/security.py`) before pushing agent changes.
 - Emit only redacted PII. Never write user traffic to disk except opt-in recording and evidence export.
 - Contracts `lib/schema.ts` and `lib/live/protocol.ts` are frozen; changes must be additive.
-- Push only to your own branch (Sachit / feat/ui / Chromium-extension). Never main, never force-push
-  a branch teammates have pulled.
+- `main` is the integration branch: everything ships from it. Feature branches (Sachit /
+  Chromium-extension / nirmit / yash) are merged into main. Never force-push main.
