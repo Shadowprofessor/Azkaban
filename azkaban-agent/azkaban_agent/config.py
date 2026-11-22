@@ -88,6 +88,9 @@ class Config:
     nim_key: str = ""
     nim_fallback_ollama: bool = True
     upstream_proxy: str = ""
+    history_enabled: bool = True
+    history_days: int = 30
+    history_replay: int = 500
     geoip_db: str = ""
     home_country: str = "IN"
     known_emails: list[str] = field(default_factory=list)
@@ -112,6 +115,10 @@ class Config:
             nim_fallback_ollama=e("AZK_NIM_FALLBACK_OLLAMA", "1") != "0",
             # Chain to an existing HTTP proxy, for machines whose internet goes through one.
             upstream_proxy=e("AZK_UPSTREAM_PROXY", "").strip(),
+            # Durable flow history, so the dashboard can show past sessions.
+            history_enabled=e("AZK_HISTORY", "1") != "0",
+            history_days=max(0, int(e("AZK_HISTORY_DAYS", "30") or 30)),
+            history_replay=max(0, int(e("AZK_HISTORY_REPLAY", "500") or 500)),
             geoip_db=e("AZK_GEOIP_DB", str(DATA_DIR / "GeoLite2-Country.mmdb")),
             home_country=e("AZK_HOME_COUNTRY", "IN").upper(),
             known_emails=_csv("AZK_KNOWN_EMAILS"),

@@ -55,6 +55,12 @@ function normaliseFlow(flow) {
     severity: Number(flow.severity) || 0,
     bytes: Number(flow.bytes) || 0,
     tcf,
+    // Additive: request/response detail for the Burp-style panel, and whether this flow
+    // came from the agent's durable history rather than this live session.
+    traffic: isObject(flow.traffic) ? flow.traffic : null,
+    requestHeaders: isObject(flow.requestHeaders) ? flow.requestHeaders : null,
+    process: isObject(flow.process) ? flow.process : null,
+    historical: !!flow.historical,
   };
 }
 

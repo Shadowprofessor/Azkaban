@@ -58,6 +58,7 @@ class Hub:
         self.status_fn = status_fn
         self.on_command = on_command
         self.extension = extension        # extbridge.ExtensionBridge, or None to refuse producers
+        self.history_provider = None      # () -> list[dict]: past flows replayed to new clients
         self.clients: dict[ServerConnection, asyncio.Queue] = {}
         self.history: deque[str] = deque(maxlen=HISTORY)
         self.last_score: str | None = None
@@ -118,6 +119,15 @@ class Hub:
     async def consumer(self, ws: ServerConnection) -> None:
         q: asyncio.Queue = asyncio.Queue(maxsize=QUEUE_MAX)
         await ws.send(json.dumps(self.status_fn()))
+        # Durable history first, so the view starts with what already happened.
+        if self.history_provider is not None:
+            try:
+                for msg in self.history_provider():
+                    if q.full():
+                        break
+                    q.put_nowait(json.dumps(msg, separators=(",", ":")))
+            except Exception:
+                pass
         for data in list(self.history):
             q.put_nowait(data) if not q.full() else None
         if self.last_score:

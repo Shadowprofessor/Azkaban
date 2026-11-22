@@ -12,7 +12,8 @@
     "package": "bash ../scripts/package-extension.sh",
     "test:score": "node --experimental-strip-types e2e/phase8.mjs",
     "test:alerts": "node --experimental-strip-types e2e/phase9.mjs",
-    "test:bridge": "node --experimental-strip-types e2e/phase10.mjs"
+    "test:bridge": "node --experimental-strip-types e2e/phase10.mjs",
+    "test:queue": "node --experimental-strip-types e2e/phase12.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.65.1",

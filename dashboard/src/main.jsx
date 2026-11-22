@@ -532,12 +532,54 @@ function EvidencePage({ flows, send }) {
     <div className="map-explainer"><LockKeyhole size={13}/> The local agent remains responsible for append-only storage and protected signing keys.</div></div>;
 }
 
+/**
+ * The request as it went out and what came back: method, path, status, timing and size,
+ * the way a proxy tool shows it. Everything here was measured by the agent; credential
+ * header values are replaced by a size note before they ever leave it.
+ */
+function RequestDetail({ flow }) {
+  const t = flow.traffic || {};
+  const headers = flow.requestHeaders || null;
+  const [showHeaders, setShowHeaders] = useState(false);
+  const status = Number(t.status) || 0;
+  const cls = status >= 500 ? 'bad' : status >= 400 ? 'warn' : status >= 300 ? 'info' : status ? 'ok' : 'none';
+  const ms = Number(t.durationMs) || 0;
+  const up = Number(t.uploadBytes) || 0;
+  const down = Number(t.downloadBytes) || 0;
+  return <div className="drawer-section req-detail">
+    <div className="drawer-section-title">REQUEST {flow.historical && <span className="hist-chip" title="From the stored history, not this live session">HISTORY</span>}</div>
+    <div className="req-line">
+      <span className={`req-method m-${(flow.method || 'GET').toLowerCase()}`}>{flow.method || 'GET'}</span>
+      <code className="req-path" title={flow.path}>{flow.path || '/'}</code>
+      {status ? <span className={`req-status s-${cls}`}>{status}</span> : <span className="req-status s-none" title="No response was recorded">—</span>}
+    </div>
+    <div className="req-grid">
+      <div><span>Host</span><b className="mono">{flow.host}</b></div>
+      <div><span>IP</span><b className="mono">{flow.ip || '—'}</b></div>
+      <div><span>Protocol</span><b>{t.protocol || '—'}</b></div>
+      <div><span>Type</span><b>{t.contentType ? t.contentType.split(';')[0] : '—'}</b></div>
+      <div><span>Sent</span><b>{up ? formatBytes(up) : '—'}</b></div>
+      <div><span>Received</span><b>{down ? formatBytes(down) : '—'}</b></div>
+      <div><span>Duration</span><b>{ms ? `${ms} ms` : '—'}</b></div>
+      <div><span>Process</span><b>{flow.process?.name || flow.app}{flow.process?.pid ? ` (${flow.process.pid})` : ''}</b></div>
+    </div>
+    {headers && <div className="req-headers">
+      <button className="text-link" onClick={() => setShowHeaders(!showHeaders)}>
+        {showHeaders ? 'Hide' : 'Show'} request headers ({Object.keys(headers).length}) {showHeaders ? <ChevronDown size={12}/> : <ChevronRight size={12}/>}
+      </button>
+      {showHeaders && <table className="hdr-table"><tbody>{Object.entries(headers).map(([k, v]) =>
+        <tr key={k}><td className="mono hdr-name">{k}</td><td className={`mono hdr-val${/not shown/.test(v) ? ' hdr-hidden' : ''}`}>{v}</td></tr>)}</tbody></table>}
+      {showHeaders && <p className="hdr-note"><LockKeyhole size={11}/> Cookie, authorization and device-id values are never sent here or stored; only their size is.</p>}
+    </div>}
+  </div>;
+}
+
 function FlowDrawer({ flow, verdict, close, send }) {
   const [copied, setCopied] = useState('');
   const [rawMessage, setRawMessage] = useState(false);
   const pii = flow.pii || [];
   const copy = async (text, label) => { try { await navigator.clipboard.writeText(text); setCopied(label); window.setTimeout(() => setCopied(''), 1500); } catch { setCopied('Clipboard unavailable'); } };
-  return <div className="drawer-backdrop" onMouseDown={(event) => event.target === event.currentTarget && close()}><aside className="flow-drawer"><div className="drawer-head"><div><div className="eyebrow">FLOW EVIDENCE <span className="flow-id">{flow.id}</span></div><h2>{flow.app} <span>→</span> {flow.company || flow.host}</h2></div><button className="icon-btn" onClick={close}><X size={16}/></button></div><div className={`drawer-mode ${flow.decrypted ? 'decrypted' : 'metadata'}`}>{flow.decrypted ? <Eye size={14}/> : <EyeOff size={14}/>}<span><b>{flow.decrypted ? 'Request contents read' : 'Connection details only'}</b><small>{flow.decrypted ? 'The agent inspected this request payload.' : 'Payload unavailable. Connection details remain visible.'}</small></span></div><div className="drawer-section"><div className="drawer-section-title">DESTINATION <button onClick={() => copy(flow.host, 'Copied host')}><Copy size={12}/>{copied === 'Copied host' ? 'Copied' : 'Copy host'}</button></div><div className="evidence-grid"><Evidence label="HOST" value={flow.host} mono/><Evidence label="COMPANY" value={flow.company || 'Not attributed'}/><Evidence label="COUNTRY" value={`${flagEmoji(flow.country)} ${countryNames[flow.country] || flow.country}`} /><Evidence label="IP ADDRESS" value={flow.ip || 'Not provided'} mono/><Evidence label="REQUEST" value={`${flow.method || '—'} ${flow.path || '/'}`} mono/><Evidence label="DATA SENT" value={formatBytes(flow.bytes)}/><Evidence label="OBSERVED AT" value={new Date(flow.ts).toLocaleString()} mono/><Evidence label="TRACKER" value={flow.tracker ? `${flow.tracker.name} · ${flow.tracker.category}` : 'No tracker attribution'} /></div></div><div className="drawer-section"><div className="drawer-section-title">DATA TYPES FOUND <span>{pii.length} DETECTED</span></div>{pii.length ? <div className="pii-evidence">{pii.map((hit, index) => <div className="pii-evidence-row" key={`${hit.type}-${index}`}><span className={`pii-chip ${hit.type}`}>{piiShort[hit.type] || hit.type}</span><code>{hit.redacted}</code><span className="confidence">{Math.round(hit.confidence * 100)}% conf.</span><button title="Raw value status" onClick={() => setRawMessage(!rawMessage)}><Eye size={13}/> Reveal</button></div>)}{rawMessage && <div className="redaction-note"><LockKeyhole size={13}/><span>Values arrive redacted and cannot be revealed here.</span></div>}</div> : <div className="no-signals"><CheckCircle2 size={15}/> No data signal reported.</div>}</div><div className="drawer-section"><div className="drawer-section-title">SEVERITY <span className={`severity-number ${severityWord(flow.severity)}`}>{Math.round(flow.severity)} / 100 · {severityWord(flow.severity).toUpperCase()}</span></div><div className="severity-large"><div><i className={severityWord(flow.severity)} style={{ width: `${Math.max(3, flow.severity)}%` }}/></div><span>Analysis score</span></div></div><div className="drawer-section verdict-drawer"><div className="drawer-section-title">REVIEW NOTE</div>{verdict ? <VerdictCard verdict={verdict} compact/> : <div className="verdict-pending"><span><Clock3 size={14}/></span><p>No verdict has arrived for this flow yet.</p><button onClick={() => send({ type: 'analyze', flowId: flow.id })}>Ask agent to review <ArrowRight size={13}/></button></div>}</div><div className="drawer-bottom"><span>Evidence from local agent stream</span><button className="btn secondary compact" onClick={() => copy(JSON.stringify({ ...flow, pii }), 'Copied flow JSON')}><Copy size={13}/>{copied === 'Copied flow JSON' ? 'Copied' : 'Copy flow record'}</button></div></aside></div>;
+  return <div className="drawer-backdrop" onMouseDown={(event) => event.target === event.currentTarget && close()}><aside className="flow-drawer"><div className="drawer-head"><div><div className="eyebrow">FLOW EVIDENCE <span className="flow-id">{flow.id}</span></div><h2>{flow.app} <span>→</span> {flow.company || flow.host}</h2></div><button className="icon-btn" onClick={close}><X size={16}/></button></div><div className={`drawer-mode ${flow.decrypted ? 'decrypted' : 'metadata'}`}>{flow.decrypted ? <Eye size={14}/> : <EyeOff size={14}/>}<span><b>{flow.decrypted ? 'Request contents read' : 'Connection details only'}</b><small>{flow.decrypted ? 'The agent inspected this request payload.' : 'Payload unavailable. Connection details remain visible.'}</small></span></div><RequestDetail flow={flow}/><div className="drawer-section"><div className="drawer-section-title">DESTINATION <button onClick={() => copy(flow.host, 'Copied host')}><Copy size={12}/>{copied === 'Copied host' ? 'Copied' : 'Copy host'}</button></div><div className="evidence-grid"><Evidence label="HOST" value={flow.host} mono/><Evidence label="COMPANY" value={flow.company || 'Not attributed'}/><Evidence label="COUNTRY" value={`${flagEmoji(flow.country)} ${countryNames[flow.country] || flow.country}`} /><Evidence label="IP ADDRESS" value={flow.ip || 'Not provided'} mono/><Evidence label="REQUEST" value={`${flow.method || '—'} ${flow.path || '/'}`} mono/><Evidence label="DATA SENT" value={formatBytes(flow.bytes)}/><Evidence label="OBSERVED AT" value={new Date(flow.ts).toLocaleString()} mono/><Evidence label="TRACKER" value={flow.tracker ? `${flow.tracker.name} · ${flow.tracker.category}` : 'No tracker attribution'} /></div></div><div className="drawer-section"><div className="drawer-section-title">DATA TYPES FOUND <span>{pii.length} DETECTED</span></div>{pii.length ? <div className="pii-evidence">{pii.map((hit, index) => <div className="pii-evidence-row" key={`${hit.type}-${index}`}><span className={`pii-chip ${hit.type}`}>{piiShort[hit.type] || hit.type}</span><code>{hit.redacted}</code><span className="confidence">{Math.round(hit.confidence * 100)}% conf.</span><button title="Raw value status" onClick={() => setRawMessage(!rawMessage)}><Eye size={13}/> Reveal</button></div>)}{rawMessage && <div className="redaction-note"><LockKeyhole size={13}/><span>Values arrive redacted and cannot be revealed here.</span></div>}</div> : <div className="no-signals"><CheckCircle2 size={15}/> No data signal reported.</div>}</div><div className="drawer-section"><div className="drawer-section-title">SEVERITY <span className={`severity-number ${severityWord(flow.severity)}`}>{Math.round(flow.severity)} / 100 · {severityWord(flow.severity).toUpperCase()}</span></div><div className="severity-large"><div><i className={severityWord(flow.severity)} style={{ width: `${Math.max(3, flow.severity)}%` }}/></div><span>Analysis score</span></div></div><div className="drawer-section verdict-drawer"><div className="drawer-section-title">REVIEW NOTE</div>{verdict ? <VerdictCard verdict={verdict} compact/> : <div className="verdict-pending"><span><Clock3 size={14}/></span><p>No verdict has arrived for this flow yet.</p><button onClick={() => send({ type: 'analyze', flowId: flow.id })}>Ask agent to review <ArrowRight size={13}/></button></div>}</div><div className="drawer-bottom"><span>Evidence from local agent stream</span><button className="btn secondary compact" onClick={() => copy(JSON.stringify({ ...flow, pii }), 'Copied flow JSON')}><Copy size={13}/>{copied === 'Copied flow JSON' ? 'Copied' : 'Copy flow record'}</button></div></aside></div>;
 }
 
 function Evidence({ label, value, mono = false }) { return <div className="evidence-item"><span>{label}</span><b className={mono ? 'mono' : ''}>{value || '—'}</b></div>; }

@@ -23,7 +23,7 @@ type Unknown = { key: string; data: { domain: string; category: string; confiden
 // session and then goes straight there.
 const DASHBOARD_URL = "http://127.0.0.1:5173/?view=radar";
 
-function render(site: string, t: TabStats | null, a: SiteAudit | null, s: Settings, unknown: Unknown[] = [], bridge: BridgeState = { status: "standalone", agentVersion: "", engines: {}, sent: 0, lastError: "", since: 0 }) {
+function render(site: string, t: TabStats | null, a: SiteAudit | null, s: Settings, unknown: Unknown[] = [], bridge: BridgeState = { status: "standalone", agentVersion: "", engines: {}, sent: 0, lastError: "", since: 0, queued: 0 }) {
   const paused = s.allowlist.includes(site);
   // company -> tracker domains this page contacted (for one-click blocking)
   const byCompany = new Map<string, string[]>();
@@ -98,7 +98,7 @@ function render(site: string, t: TabStats | null, a: SiteAudit | null, s: Settin
       <button data-act="alerts" class="${s.muted ? "primary" : ""}" data-testid="alerts-toggle">${s.muted ? "Turn on" : "Turn off"}</button>
     </section>
     <section class="card row between" aria-label="Agent bridge" data-testid="bridge-card">
-      <div><strong>Agent bridge</strong><div class="muted" style="font-size:11px">${s.agentBridge ? (bridge.status === "connected" ? `sending findings to the agent (${bridge.sent})` : "on, waiting for the agent on 127.0.0.1:8787") : "off, nothing leaves this browser"}</div></div>
+      <div><strong>Agent bridge</strong><div class="muted" style="font-size:11px">${s.agentBridge ? (bridge.status === "connected" ? `sent ${bridge.sent} finding${bridge.sent === 1 ? "" : "s"} to the agent` : bridge.queued ? `${bridge.queued} finding${bridge.queued === 1 ? "" : "s"} saved, waiting for the agent` : "on, waiting for the agent on 127.0.0.1:8787") : "off, nothing leaves this browser"}</div></div>
       <button data-act="bridge" class="${s.agentBridge ? "" : "primary"}" data-testid="bridge-toggle">${s.agentBridge ? "Turn off" : "Turn on"}</button>
     </section>
     <section class="card" aria-label="Companies">

@@ -13,6 +13,7 @@ from .config import REPO_ROOT
 from .evidence import EvidenceChain
 from .extbridge import ExtensionBridge
 from .flowext import Correlator, IdleSessions, extend as extend_flow
+from .history import FlowHistory
 from .idle import IdleDetector
 from .insights import InsightEngine
 from . import remediate
@@ -37,6 +38,9 @@ class Agent:
         self.ext = ExtensionBridge(self.status, self.on_browser_detection, self.on_site_score)
         self.hub = Hub(self.status, self.on_command, extension=self.ext)
         self.site_scores: dict[str, dict] = {}        # site -> latest extension score
+        self.history = FlowHistory(REPO_ROOT / "evidence" / "history.db",
+                                   keep_days=cfg.history_days, enabled=cfg.history_enabled)
+        self.hub.history_provider = self._replay_history
         self.idle_sessions = IdleSessions()
         self.correlator = Correlator()
         self.pipeline = Pipeline(cfg)
@@ -72,6 +76,20 @@ class Agent:
     def publish_insight(self, msg: dict) -> None:
         """Single path for every insight, so remediation is attached exactly once."""
         self.hub.publish(remediate.enrich(msg))
+
+    def _replay_history(self) -> list[dict]:
+        """Past flows for a dashboard that just connected, oldest first so it reads in order.
+
+        Sent as ordinary `flow` messages: the dashboard already knows how to render those,
+        so history needs no new client code. `historical: true` lets a UI tell them apart.
+        """
+        if not self.cfg.history_replay:
+            return []
+        try:
+            rows = self.history.recent(self.cfg.history_replay)
+        except Exception:
+            return []
+        return [{"type": "flow", "flow": {**f, "historical": True}} for f in reversed(rows)]
 
     # ------------------------------------------------------------------ extension bridge
     async def on_browser_detection(self, d: dict) -> None:
@@ -137,6 +155,7 @@ class Agent:
                         "nim": self.legal.nim.configured,
                         "remediation": remediate.available()},
             # Additive (nirmit dashboard): idle labelling state.
+            "history": self.history.stats(),
             "idleMonitoring": bool((self.idle is not None and self.idle.available) or self.mode == "replay"),
             "idleThresholdMs": self.idle_sessions.threshold_ms,
             # Additive (v1): extension bridge state, for the popup's connected indicator.
@@ -184,6 +203,7 @@ class Agent:
         extend_flow(flow_dict, raw, enriched, idle=self.idle_sessions, corr=self.correlator,
                     idle_measured=measured)
         self.hub.publish({"type": "flow", "flow": flow_dict})
+        self.history.add(flow_dict)          # durable copy, survives restarts
         self.evidence.add_flow(flow_dict)
         f = enriched.flow
         self.tracker_clf.observe(raw, listed=f.tracker is not None)

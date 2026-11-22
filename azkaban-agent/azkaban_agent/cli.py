@@ -59,6 +59,13 @@ def build_parser() -> argparse.ArgumentParser:
 
     sub.add_parser("fetch-geo", help="Download the offline DB-IP country database")
 
+    hi = sub.add_parser("history", help="Show or clear the stored flow history")
+    hi.add_argument("--limit", type=int, default=20, help="How many recent flows to list")
+    hi.add_argument("--host", default="", help="Only flows whose host contains this")
+    hi.add_argument("--pii-only", action="store_true", help="Only flows that carried personal data")
+    hi.add_argument("--days", type=int, default=0, help="Only the last N days")
+    hi.add_argument("--forget", action="store_true", help="Delete the stored history permanently")
+
     rc = sub.add_parser("rag-check", help="Show which law sections and remediation a flow retrieves")
     rc.add_argument("--tracker", action="store_true", help="Treat the destination as a tracker")
     rc.add_argument("--cross-border", action="store_true", help="Destination outside the home country")
@@ -182,6 +189,45 @@ def main(argv: list[str] | None = None) -> int:
         from .demo import write
         n = write(args.file)
         print(f"[azkaban] wrote {n} synthetic flows to {args.file}")
+        return 0
+
+    if args.cmd == "history":
+        import time as _time
+
+        from .history import FlowHistory
+        cfg = _cfg(args)
+        store = FlowHistory(REPO_ROOT / "evidence" / "history.db",
+                            keep_days=cfg.history_days, enabled=True)
+        try:
+            if args.forget:
+                n = store.forget_all()
+                print(f"[azkaban] deleted {n} stored flow(s). The history file is now empty.")
+                return 0
+            st = store.stats()
+            if not st["flows"]:
+                print("[azkaban] no history yet. Run a capture; flows are recorded as they arrive.")
+                return 0
+            span = ""
+            if st["oldest"] and st["newest"]:
+                fmt = "%Y-%m-%d %H:%M"
+                span = (f"  {_time.strftime(fmt, _time.localtime(st['oldest'] / 1000))}"
+                        f" .. {_time.strftime(fmt, _time.localtime(st['newest'] / 1000))}")
+            print(f"[azkaban] {st['flows']} flows, {st['withPii']} carrying personal data, "
+                  f"{st['sessions']} session(s){span}")
+            print(f"          {st['path']}  (kept {st['keepDays']} days)")
+            since = int((_time.time() - args.days * 86400) * 1000) if args.days else None
+            rows = store.recent(args.limit, since_ms=since, host=args.host or None,
+                                pii_only=args.pii_only)
+            print()
+            for f in rows:
+                when = _time.strftime("%m-%d %H:%M:%S", _time.localtime(f.get("ts", 0) / 1000))
+                pii = ",".join(sorted({h["type"] for h in f.get("pii") or []})) or "-"
+                print(f"  {when}  {str(f.get('severity', 0)):>3}  {f.get('app', ''):<18.18}"
+                      f"{f.get('method', ''):<5.5}{f.get('host', ''):<34.34} {pii}")
+            if not rows:
+                print("  (nothing matched that filter)")
+        finally:
+            store.close()
         return 0
 
     if args.cmd == "rag-check":
