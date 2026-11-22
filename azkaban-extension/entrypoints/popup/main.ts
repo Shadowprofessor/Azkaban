@@ -62,10 +62,8 @@ function render(site: string, t: TabStats | null, a: SiteAudit | null, s: Settin
         <button data-act="toggle" class="${s.blockTrackers ? "" : "primary"}" data-testid="patronus-toggle">${s.blockTrackers ? "Turn off" : "Cast Patronus"}</button>
       </div>
       ${t?.blocked ? `<div class="muted" style="margin-top:4px" data-testid="blocked">${t.blocked} request${t.blocked === 1 ? "" : "s"} blocked on this page</div>` : ""}
-      ${s.blockTrackers || s.customBlocks.length
-        ? paused
-          ? `<button data-act="resume" style="margin-top:8px;width:100%">Resume blocking on ${esc(site)}</button>`
-          : `<button data-act="pause" class="danger" style="margin-top:8px;width:100%" data-testid="pause">Site broken? Pause Patronus on ${esc(site)}</button>`
+      ${paused && (s.blockTrackers || s.customBlocks.length)
+        ? `<button data-act="resume" style="margin-top:8px;width:100%">Resume blocking on ${esc(site)}</button>`
         : ""}
     </section>
     <section class="card score" aria-label="Site safety score" data-testid="score">

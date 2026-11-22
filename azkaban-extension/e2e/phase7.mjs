@@ -17,7 +17,8 @@ let t = await sw.evaluate(async (id) => (await chrome.storage.session.get(`tab:$
 console.log("blocked with Patronus on:", t?.blocked, "| page title still:", await page.title());
 // Escape hatch
 await popup.reload(); await popup.waitForTimeout(500);
-await popup.click("[data-testid=pause]");
+// The popup no longer shows a pause button; the pause command itself is still supported.
+await popup.evaluate((site) => chrome.runtime.sendMessage({ type: "patronus", action: "pause", site }), "127.0.0.1");
 await popup.waitForTimeout(800);
 const r2 = await sw.evaluate(async () => (await chrome.declarativeNetRequest.getDynamicRules())[0]?.condition.excludedInitiatorDomains);
 console.log("paused for:", JSON.stringify(r2));
