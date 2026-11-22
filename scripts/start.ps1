@@ -11,6 +11,10 @@ function Info($m) { Write-Host "  $m" -ForegroundColor Cyan }
 function Warn($m) { Write-Host "  !! $m" -ForegroundColor Yellow }
 
 if (-not (Test-Path ".env")) { Copy-Item ".env.example" ".env"; Warn ".env created from the example: put NVIDIA_API_KEY in it" }
+if (Select-String -Path ".env.example" -Pattern "^NVIDIA_API_KEY=nvapi-" -Quiet) {
+    Warn ".env.example contains a real key. It is tracked by git, so it would be published."
+    Warn "Put the key in .env only and leave NVIDIA_API_KEY= empty in .env.example."
+}
 
 # Python agent deps (once)
 python -c "import mitmproxy, websockets, onnxruntime" 2>$null
