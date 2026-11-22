@@ -39,3 +39,12 @@ def test_embedders_and_classifiers_are_not_chat_candidates():
         assert not nim.is_chat_model(m), m
     for m in ("nvidia/nemotron-3-ultra-550b-a55b", "meta/llama-3.3-70b-instruct"):
         assert nim.is_chat_model(m), m
+
+
+def test_base_url_is_expanded_to_the_chat_endpoint(tmp_path, monkeypatch):
+    # NVIDIA's examples show base_url=".../v1"; the client POSTs to nim_url directly.
+    for given in ("https://integrate.api.nvidia.com/v1", "https://integrate.api.nvidia.com/v1/",
+                  "https://integrate.api.nvidia.com/v1/chat/completions"):
+        monkeypatch.setenv("AZK_NIM_URL", given)
+        c = load(tmp_path, monkeypatch, "")
+        assert c.nim_url == "https://integrate.api.nvidia.com/v1/chat/completions", given

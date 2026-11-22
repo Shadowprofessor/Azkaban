@@ -56,6 +56,22 @@ def _nim_enabled(flag: str, key: str) -> bool:
     return bool(key.strip())      # unset: follow the key
 
 
+def _chat_url(url: str) -> str:
+    """Accept either the base URL NVIDIA's docs show (.../v1) or the full chat endpoint.
+
+    The client POSTs to this URL. Given the base, requests went to .../v1 and failed, which
+    is easy to hit because build.nvidia.com shows `base_url=".../v1"` in its examples.
+    """
+    u = (url or "").strip().rstrip("/")
+    if not u:
+        return "https://integrate.api.nvidia.com/v1/chat/completions"
+    if u.endswith("/chat/completions"):
+        return u
+    if u.endswith("/v1"):
+        return u + "/chat/completions"
+    return u
+
+
 def _csv(name: str) -> list[str]:
     return [x.strip() for x in os.environ.get(name, "").split(",") if x.strip()]
 
@@ -90,7 +106,7 @@ class Config:
             # NIM is the primary reasoning engine and turns itself on once a key exists.
             # AZK_NIM_ENABLED=0 forces it off (fully offline runs, demos, CI).
             nim_enabled=_nim_enabled(e("AZK_NIM_ENABLED", ""), e("NVIDIA_API_KEY", "")),
-            nim_url=e("AZK_NIM_URL", "https://integrate.api.nvidia.com/v1/chat/completions"),
+            nim_url=_chat_url(e("AZK_NIM_URL", "https://integrate.api.nvidia.com/v1/chat/completions")),
             nim_model=e("AZK_NIM_MODEL", NEMOTRON_ULTRA),
             nim_key=e("NVIDIA_API_KEY", "").strip(),
             nim_fallback_ollama=e("AZK_NIM_FALLBACK_OLLAMA", "1") != "0",
