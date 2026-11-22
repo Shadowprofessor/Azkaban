@@ -41,6 +41,22 @@ const navItems = [
   { id: 'footprint', label: 'Link apps', icon: Link2, priority: 'ACCOUNTS' },
 ];
 
+// Deep link from the extension popup: ?view=<page> opens that dashboard page directly
+// instead of the landing page. The ownership tick is still asked once per browser session
+// -- it is the user's own attestation, so it is never pre-ticked for them -- but the setup
+// opens straight away and lands on the requested page afterwards.
+const DEEP_LINK_PAGES = ['report', 'radar', 'idle', 'insights', 'map', 'correlation', 'legal', 'actions', 'evidence', 'footprint'];
+
+function requestedView() {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const raw = (params.get('view') || window.location.hash.replace(/^#\/?/, '')).trim().toLowerCase();
+    return DEEP_LINK_PAGES.includes(raw) ? raw : null;
+  } catch {
+    return null;
+  }
+}
+
 function App() {
   const agent = useGhostStore((s) => s.agent);
   const connected = useGhostStore((s) => s.agent.connected);
@@ -53,7 +69,7 @@ function App() {
   const selectedFlowId = useGhostStore((s) => s.selectedFlowId);
   const filters = useGhostStore((s) => s.filters);
   const selectedVerdict = useGhostStore((s) => selectedFlowId ? s.verdicts[selectedFlowId] : undefined);
-  const [page, setPage] = useState('report');
+  const [page, setPage] = useState(() => requestedView() || 'report');
   const [device] = useState(detectDeviceType);
   const [socketUrl, setSocketUrl] = useState(getAgentUrl());
   const [urlDraft, setUrlDraft] = useState(getAgentUrl());
@@ -178,7 +194,12 @@ function App() {
   }, [notify]);
   const selectFlow = (id) => { store.getState().selectFlow(id); setDrawer(true); };
 
-  if (!consent) return <ConsentGate agent={agent} device={device} socketUrl={socketUrl} onAccept={() => { store.getState().setConsent(true); setPage('report'); }} onSettings={() => setSettings(true)} />;
+  if (!consent) {
+    const wanted = requestedView();
+    return <ConsentGate agent={agent} device={device} socketUrl={socketUrl} autoOpen={!!wanted}
+      onAccept={() => { store.getState().setConsent(true); setPage(wanted || 'report'); }}
+      onSettings={() => setSettings(true)} />;
+  }
 
   const filteredFlows = flows.filter((flow) => {
     const query = search.trim().toLowerCase();
@@ -226,8 +247,10 @@ function App() {
 
 function Brand({ showV2 = true }) { return <div className="brand"><div className="brand-mark"><span/><span/><span/></div><div><b>ghostprint</b><small>PRIVACY FORENSICS</small></div>{showV2 && <span className="brand-v2">V2</span>}</div>; }
 
-function ConsentGate({ agent, device, socketUrl, onAccept, onSettings }) {
-  const [showSetup, setShowSetup] = useState(false);
+function ConsentGate({ agent, device, socketUrl, onAccept, onSettings, autoOpen = false }) {
+  // autoOpen: arrived from the extension's Open Dashboard link, so skip the marketing page
+  // and show the one ownership question straight away.
+  const [showSetup, setShowSetup] = useState(autoOpen);
   const [checked, setChecked] = useState(false);
   return <div className="consent-screen">
     <header className="consent-top">

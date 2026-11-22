@@ -18,7 +18,10 @@ async function activeTab() {
 }
 
 type Unknown = { key: string; data: { domain: string; category: string; confidence: number } };
-const DASHBOARD_URL = "http://127.0.0.1:5173/";
+// Deep link: ?view=radar lands on Leak Radar (the live flow view) instead of the
+// marketing landing page. The website asks the ownership question once per browser
+// session and then goes straight there.
+const DASHBOARD_URL = "http://127.0.0.1:5173/?view=radar";
 
 function render(site: string, t: TabStats | null, a: SiteAudit | null, s: Settings, unknown: Unknown[] = [], bridge: BridgeState = { status: "standalone", agentVersion: "", engines: {}, sent: 0, lastError: "", since: 0 }) {
   const paused = s.allowlist.includes(site);
@@ -50,7 +53,7 @@ function render(site: string, t: TabStats | null, a: SiteAudit | null, s: Settin
           <span class="dot ${bridge.status === "connected" ? "dot-on" : "dot-off"}"></span>
           <span class="muted" style="font-size:11px">${bridge.status === "connected" ? "Connected to agent" : "Standalone mode"}</span>
         </div>
-        ${bridge.status === "connected" ? `<a class="dashLink" href="${DASHBOARD_URL}" target="_blank" rel="noreferrer" data-testid="dashboard-link">Open Dashboard \u2197</a>` : ""}
+        <a class="dashLink" href="${DASHBOARD_URL}" target="_blank" rel="noreferrer" data-testid="dashboard-link" title="${bridge.status === "connected" ? "Opens the live flow view" : "Opens the dashboard; start the agent to see live data"}">Open Dashboard \u2197</a>
       </div>
     </header>
     <section class="card" aria-label="Patronus" data-testid="patronus">
